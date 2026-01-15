@@ -71,18 +71,30 @@ make docker-down    # Stop all services
 
 ## Project Status
 
-**Current Phase**: Foundation Complete ✅
+**Current Phase**: Telescope Coordinator Implementation ✅
 
 - [x] Project initialization and directory structure
 - [x] Core dependencies added (MQTT, PostgreSQL, Docker SDK, etc.)
 - [x] Build tooling (Makefile, linters, formatters)
-- [ ] Core infrastructure implementation
-- [ ] Coordinator implementations
-- [ ] Containerization
-- [ ] Testing and validation
+- [x] Base coordinator pattern and health check infrastructure
+- [x] Message coordinator (MQTT broker management)
+- [x] ASCOM engine with Alpaca client
+- [x] Telescope coordinator with multi-tenant support
+- [x] Docker Compose orchestration
+- [x] Unit tests for coordinators and engines
+- [ ] Integration tests with ASCOM simulator
+- [ ] Remaining coordinator implementations
+- [ ] Plugin SDK and lifecycle management
 - [ ] CI/CD pipeline
 
-See `next_steps.txt` for detailed implementation roadmap.
+**Completed Coordinators**:
+- ✅ Message Coordinator - MQTT broker management and health monitoring
+- ✅ Telescope Coordinator - ASCOM Alpaca integration, device management, multi-tenant configs
+
+**In Progress**:
+- Integration testing with ASCOM Alpaca Simulator
+
+See `docs/coordinators/` for coordinator-specific documentation.
 
 ## Technology Stack
 
