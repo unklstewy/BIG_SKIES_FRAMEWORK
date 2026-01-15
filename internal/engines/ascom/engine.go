@@ -351,6 +351,11 @@ func (e *Engine) healthCheckLoop(ctx context.Context) {
 	}
 }
 
+// Name implements healthcheck.Checker interface.
+func (e *Engine) Name() string {
+	return "ascom_engine"
+}
+
 // performHealthChecks checks all connected devices.
 func (e *Engine) performHealthChecks(ctx context.Context) {
 	e.mu.RLock()
@@ -406,8 +411,8 @@ func (e *Engine) checkDeviceHealth(ctx context.Context, md *managedDevice) {
 	md.failCount = 0
 }
 
-// HealthCheck implements healthcheck.Checker interface.
-func (e *Engine) HealthCheck(ctx context.Context) *healthcheck.Result {
+// Check implements healthcheck.Checker interface.
+func (e *Engine) Check(ctx context.Context) *healthcheck.Result {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 

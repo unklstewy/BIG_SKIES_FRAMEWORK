@@ -296,7 +296,7 @@ func TestHealthCheck(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("healthy with no devices", func(t *testing.T) {
-		result := engine.HealthCheck(ctx)
+		result := engine.Check(ctx)
 		assert.NotNil(t, result)
 		assert.Equal(t, "ascom_engine", result.ComponentName)
 		assert.Equal(t, healthcheck.StatusHealthy, result.Status)
@@ -309,7 +309,7 @@ func TestHealthCheck(t *testing.T) {
 		device := createTestDevice("device-9", "telescope", 0)
 		require.NoError(t, engine.RegisterDevice(device))
 
-		result := engine.HealthCheck(ctx)
+		result := engine.Check(ctx)
 		assert.Equal(t, healthcheck.StatusUnhealthy, result.Status)
 		assert.Contains(t, result.Message, "No devices connected")
 		assert.Equal(t, 1, result.Details["total_devices"])
