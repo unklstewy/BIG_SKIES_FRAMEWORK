@@ -949,7 +949,13 @@ func (c *TelescopeCoordinator) publishResponse(subtopic string, payload interfac
 		return
 	}
 
-	if err := c.GetMQTTClient().Publish(topic, 1, false, data); err != nil {
+	mqttClient := c.GetMQTTClient()
+	if mqttClient == nil {
+		c.GetLogger().Debug("MQTT client not available, skipping publish")
+		return
+	}
+
+	if err := mqttClient.Publish(topic, 1, false, data); err != nil {
 		c.GetLogger().Error("Failed to publish response",
 			zap.String("topic", topic),
 			zap.Error(err))
