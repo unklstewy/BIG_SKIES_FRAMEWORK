@@ -15,6 +15,7 @@ import (
 
 func main() {
 	// Parse command line flags
+	brokerURL := flag.String("broker-url", "tcp://mqtt-broker:1883", "MQTT broker URL")
 	databaseURL := flag.String("database-url", "postgres://localhost:5432/bigskies", "PostgreSQL connection URL")
 	maxConns := flag.Int("max-connections", 25, "Maximum database connections")
 	minConns := flag.Int("min-connections", 5, "Minimum database connections")
@@ -43,6 +44,7 @@ func main() {
 
 	// Create coordinator configuration
 	config := &coordinators.DataStoreCoordinatorConfig{
+		BrokerURL:         *brokerURL,
 		DatabaseURL:       *databaseURL,
 		MaxConnections:    *maxConns,
 		MinConnections:    *minConns,

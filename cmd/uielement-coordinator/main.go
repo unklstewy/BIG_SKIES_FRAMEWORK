@@ -15,6 +15,7 @@ import (
 
 func main() {
 	// Parse command line flags
+	brokerURL := flag.String("broker-url", "tcp://mqtt-broker:1883", "MQTT broker URL")
 	scanInterval := flag.Duration("scan-interval", 10*time.Minute, "UI API scan interval")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flag.Parse()
@@ -40,6 +41,7 @@ func main() {
 
 	// Create coordinator configuration
 	config := &coordinators.UIElementCoordinatorConfig{
+		BrokerURL:    *brokerURL,
 		ScanInterval: *scanInterval,
 	}
 	config.Name = "uielement-coordinator"

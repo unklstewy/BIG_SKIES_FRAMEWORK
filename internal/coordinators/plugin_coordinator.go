@@ -22,6 +22,8 @@ type PluginCoordinator struct {
 // PluginCoordinatorConfig holds configuration for the plugin coordinator.
 type PluginCoordinatorConfig struct {
 	BaseConfig
+	// BrokerURL is the MQTT broker URL
+	BrokerURL string `json:"broker_url"`
 	// PluginDir is the directory for plugin storage
 	PluginDir string `json:"plugin_dir"`
 	// ScanInterval for periodic plugin scanning
@@ -76,9 +78,14 @@ func NewPluginCoordinator(config *PluginCoordinatorConfig, logger *zap.Logger) (
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	
+	brokerURL := config.BrokerURL
+	if brokerURL == "" {
+		brokerURL = "tcp://mqtt-broker:1883"
+	}
+	
 	// Create MQTT client
 	mqttConfig := &mqtt.Config{
-		BrokerURL:            "tcp://localhost:1883",
+		BrokerURL:            brokerURL,
 		ClientID:             "plugin-coordinator",
 		KeepAlive:            30 * time.Second,
 		ConnectTimeout:       10 * time.Second,

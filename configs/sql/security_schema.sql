@@ -126,79 +126,79 @@ CREATE INDEX idx_tls_certificates_issuer ON tls_certificates(issuer);
 -- Hashed using bcrypt cost 10
 INSERT INTO users (id, username, email, password_hash, enabled)
 VALUES (
-    'a0000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
     'admin',
     'admin@bigskies.local',
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',  -- bigskies_admin_2024
+    '$2a$10$5/Uo1G5bh1iMcwVe5OibDO7vxSg9bAv5dBMtbp06gVVpyhYlXn/5K',  -- bigskies_admin_2024
     true
 );
 
 -- Insert default roles
 INSERT INTO roles (id, name, description) VALUES
-    ('r0000000-0000-0000-0000-000000000001', 'admin', 'Full system administrator'),
-    ('r0000000-0000-0000-0000-000000000002', 'operator', 'Telescope operator'),
-    ('r0000000-0000-0000-0000-000000000003', 'observer', 'Read-only observer'),
-    ('r0000000-0000-0000-0000-000000000004', 'developer', 'Plugin developer');
+    ('10000000-0000-0000-0000-000000000001', 'admin', 'Full system administrator'),
+    ('10000000-0000-0000-0000-000000000002', 'operator', 'Telescope operator'),
+    ('10000000-0000-0000-0000-000000000003', 'observer', 'Read-only observer'),
+    ('10000000-0000-0000-0000-000000000004', 'developer', 'Plugin developer');
 
 -- Insert default groups
 INSERT INTO groups (id, name, description) VALUES
-    ('g0000000-0000-0000-0000-000000000001', 'administrators', 'System administrators'),
-    ('g0000000-0000-0000-0000-000000000002', 'operators', 'Telescope operators'),
-    ('g0000000-0000-0000-0000-000000000003', 'observers', 'Read-only users');
+    ('20000000-0000-0000-0000-000000000001', 'administrators', 'System administrators'),
+    ('20000000-0000-0000-0000-000000000002', 'operators', 'Telescope operators'),
+    ('20000000-0000-0000-0000-000000000003', 'observers', 'Read-only users');
 
 -- Insert default permissions
 INSERT INTO permissions (id, resource, action, effect) VALUES
     -- User management
-    ('p0000000-0000-0000-0000-000000000001', 'user', 'read', 'allow'),
-    ('p0000000-0000-0000-0000-000000000002', 'user', 'write', 'allow'),
-    ('p0000000-0000-0000-0000-000000000003', 'user', 'delete', 'allow'),
+    ('30000000-0000-0000-0000-000000000001', 'user', 'read', 'allow'),
+    ('30000000-0000-0000-0000-000000000002', 'user', 'write', 'allow'),
+    ('30000000-0000-0000-0000-000000000003', 'user', 'delete', 'allow'),
     -- Telescope operations
-    ('p0000000-0000-0000-0000-000000000004', 'telescope', 'read', 'allow'),
-    ('p0000000-0000-0000-0000-000000000005', 'telescope', 'write', 'allow'),
-    ('p0000000-0000-0000-0000-000000000006', 'telescope', 'control', 'allow'),
+    ('30000000-0000-0000-0000-000000000004', 'telescope', 'read', 'allow'),
+    ('30000000-0000-0000-0000-000000000005', 'telescope', 'write', 'allow'),
+    ('30000000-0000-0000-0000-000000000006', 'telescope', 'control', 'allow'),
     -- Plugin management
-    ('p0000000-0000-0000-0000-000000000007', 'plugin', 'read', 'allow'),
-    ('p0000000-0000-0000-0000-000000000008', 'plugin', 'write', 'allow'),
-    ('p0000000-0000-0000-0000-000000000009', 'plugin', 'install', 'allow'),
-    ('p0000000-0000-0000-0000-00000000000a', 'plugin', 'delete', 'allow'),
+    ('30000000-0000-0000-0000-000000000007', 'plugin', 'read', 'allow'),
+    ('30000000-0000-0000-0000-000000000008', 'plugin', 'write', 'allow'),
+    ('30000000-0000-0000-0000-000000000009', 'plugin', 'install', 'allow'),
+    ('30000000-0000-0000-0000-00000000000a', 'plugin', 'delete', 'allow'),
     -- Security management
-    ('p0000000-0000-0000-0000-00000000000b', 'security', 'read', 'allow'),
-    ('p0000000-0000-0000-0000-00000000000c', 'security', 'write', 'allow'),
+    ('30000000-0000-0000-0000-00000000000b', 'security', 'read', 'allow'),
+    ('30000000-0000-0000-0000-00000000000c', 'security', 'write', 'allow'),
     -- Certificate management
-    ('p0000000-0000-0000-0000-00000000000d', 'certificate', 'read', 'allow'),
-    ('p0000000-0000-0000-0000-00000000000e', 'certificate', 'write', 'allow');
+    ('30000000-0000-0000-0000-00000000000d', 'certificate', 'read', 'allow'),
+    ('30000000-0000-0000-0000-00000000000e', 'certificate', 'write', 'allow');
 
 -- Assign admin role all permissions
 INSERT INTO role_permissions (role_id, permission_id) 
-SELECT 'r0000000-0000-0000-0000-000000000001', id FROM permissions;
+SELECT '10000000-0000-0000-0000-000000000001', id FROM permissions;
 
 -- Assign operator role telescope and plugin permissions
 INSERT INTO role_permissions (role_id, permission_id) VALUES
-    ('r0000000-0000-0000-0000-000000000002', 'p0000000-0000-0000-0000-000000000004'),  -- telescope read
-    ('r0000000-0000-0000-0000-000000000002', 'p0000000-0000-0000-0000-000000000005'),  -- telescope write
-    ('r0000000-0000-0000-0000-000000000002', 'p0000000-0000-0000-0000-000000000006'),  -- telescope control
-    ('r0000000-0000-0000-0000-000000000002', 'p0000000-0000-0000-0000-000000000007'),  -- plugin read
-    ('r0000000-0000-0000-0000-000000000002', 'p0000000-0000-0000-0000-000000000008');  -- plugin write
+    ('10000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000004'),  -- telescope read
+    ('10000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000005'),  -- telescope write
+    ('10000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000006'),  -- telescope control
+    ('10000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000007'),  -- plugin read
+    ('10000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000008');  -- plugin write
 
 -- Assign observer role read-only permissions
 INSERT INTO role_permissions (role_id, permission_id) VALUES
-    ('r0000000-0000-0000-0000-000000000003', 'p0000000-0000-0000-0000-000000000001'),  -- user read
-    ('r0000000-0000-0000-0000-000000000003', 'p0000000-0000-0000-0000-000000000004'),  -- telescope read
-    ('r0000000-0000-0000-0000-000000000003', 'p0000000-0000-0000-0000-000000000007');  -- plugin read
+    ('10000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001'),  -- user read
+    ('10000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000004'),  -- telescope read
+    ('10000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000007');  -- plugin read
 
 -- Assign developer role plugin management permissions
 INSERT INTO role_permissions (role_id, permission_id) VALUES
-    ('r0000000-0000-0000-0000-000000000004', 'p0000000-0000-0000-0000-000000000007'),  -- plugin read
-    ('r0000000-0000-0000-0000-000000000004', 'p0000000-0000-0000-0000-000000000008'),  -- plugin write
-    ('r0000000-0000-0000-0000-000000000004', 'p0000000-0000-0000-0000-000000000009'),  -- plugin install
-    ('r0000000-0000-0000-0000-000000000004', 'p0000000-0000-0000-0000-00000000000a');  -- plugin delete
+    ('10000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000007'),  -- plugin read
+    ('10000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000008'),  -- plugin write
+    ('10000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000009'),  -- plugin install
+    ('10000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-00000000000a');  -- plugin delete
 
 -- Assign admin user to admin role and administrators group
 INSERT INTO user_roles (user_id, role_id) VALUES
-    ('a0000000-0000-0000-0000-000000000001', 'r0000000-0000-0000-0000-000000000001');
+    ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001');
 
 INSERT INTO user_groups (user_id, group_id) VALUES
-    ('a0000000-0000-0000-0000-000000000001', 'g0000000-0000-0000-0000-000000000001');
+    ('00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001');
 
 -- Comments for documentation
 COMMENT ON TABLE users IS 'System user accounts with authentication credentials';

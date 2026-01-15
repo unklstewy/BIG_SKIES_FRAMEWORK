@@ -22,6 +22,8 @@ type ApplicationCoordinator struct {
 // ApplicationCoordinatorConfig holds configuration for the application coordinator.
 type ApplicationCoordinatorConfig struct {
 	BaseConfig
+	// BrokerURL is the MQTT broker URL
+	BrokerURL string `json:"broker_url"`
 	// RegistryCheckInterval for periodic service health checks
 	RegistryCheckInterval time.Duration `json:"registry_check_interval"`
 	// ServiceTimeout for service responsiveness checks
@@ -58,9 +60,14 @@ func NewApplicationCoordinator(config *ApplicationCoordinatorConfig, logger *zap
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	
+	brokerURL := config.BrokerURL
+	if brokerURL == "" {
+		brokerURL = "tcp://mqtt-broker:1883"
+	}
+	
 	// Create MQTT client
 	mqttConfig := &mqtt.Config{
-		BrokerURL:            "tcp://localhost:1883",
+		BrokerURL:            brokerURL,
 		ClientID:             "application-coordinator",
 		KeepAlive:            30 * time.Second,
 		ConnectTimeout:       10 * time.Second,

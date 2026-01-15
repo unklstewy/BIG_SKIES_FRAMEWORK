@@ -54,10 +54,14 @@ func main() {
 
 	// Create MQTT configuration
 	mqttConfig := &mqtt.Config{
-		BrokerURL: fmt.Sprintf("tcp://%s:%d", *brokerHost, *brokerPort),
-		ClientID:  *clientID,
-		Username:  os.Getenv("MQTT_USERNAME"),
-		Password:  os.Getenv("MQTT_PASSWORD"),
+		BrokerURL:            fmt.Sprintf("tcp://%s:%d", *brokerHost, *brokerPort),
+		ClientID:             *clientID,
+		Username:             os.Getenv("MQTT_USERNAME"),
+		Password:             os.Getenv("MQTT_PASSWORD"),
+		KeepAlive:            30 * time.Second,
+		ConnectTimeout:       10 * time.Second,
+		AutoReconnect:        true,
+		MaxReconnectInterval: 5 * time.Minute,
 	}
 
 	// Create TLS configuration if ACME settings provided

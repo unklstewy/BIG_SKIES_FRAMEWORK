@@ -15,6 +15,7 @@ import (
 
 func main() {
 	// Parse command line flags
+	brokerURL := flag.String("broker-url", "tcp://mqtt-broker:1883", "MQTT broker URL")
 	pluginDir := flag.String("plugin-dir", "/var/lib/bigskies/plugins", "Plugin storage directory")
 	scanInterval := flag.Duration("scan-interval", 5*time.Minute, "Plugin scan interval")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -42,6 +43,7 @@ func main() {
 
 	// Create coordinator configuration
 	config := &coordinators.PluginCoordinatorConfig{
+		BrokerURL:    *brokerURL,
 		PluginDir:    *pluginDir,
 		ScanInterval: *scanInterval,
 	}

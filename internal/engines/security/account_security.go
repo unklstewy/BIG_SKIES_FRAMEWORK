@@ -80,9 +80,15 @@ func (e *AccountSecurityEngine) AuthenticateUser(ctx context.Context, username, 
 	}
 
 	// Compare password hash
+	e.logger.Debug("Attempting authentication",
+		zap.String("username", username),
+		zap.Int("password_len", len(password)),
+		zap.Int("hash_len", len(user.PasswordHash)))
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
 	if err != nil {
-		e.logger.Warn("Authentication failed", zap.String("username", username))
+		e.logger.Warn("Authentication failed",
+			zap.String("username", username),
+			zap.Error(err))
 		return nil, fmt.Errorf("invalid credentials")
 	}
 

@@ -15,6 +15,7 @@ import (
 
 func main() {
 	// Parse command line flags
+	brokerURL := flag.String("broker-url", "tcp://mqtt-broker:1883", "MQTT broker URL")
 	checkInterval := flag.Duration("check-interval", 30*time.Second, "Service health check interval")
 	serviceTimeout := flag.Duration("service-timeout", 90*time.Second, "Service heartbeat timeout")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -47,6 +48,7 @@ func main() {
 	}
 	config.Name = "application-coordinator"
 	config.LogLevel = *logLevel
+	config.BrokerURL = *brokerURL
 
 	// Create application coordinator
 	coordinator, err := coordinators.NewApplicationCoordinator(config, logger)

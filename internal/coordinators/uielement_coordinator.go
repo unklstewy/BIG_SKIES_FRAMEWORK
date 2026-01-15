@@ -22,6 +22,8 @@ type UIElementCoordinator struct {
 // UIElementCoordinatorConfig holds configuration for the UI element coordinator.
 type UIElementCoordinatorConfig struct {
 	BaseConfig
+	// BrokerURL is the MQTT broker URL
+	BrokerURL string `json:"broker_url"`
 	// ScanInterval for periodic UI API scanning
 	ScanInterval time.Duration `json:"scan_interval"`
 }
@@ -76,9 +78,14 @@ func NewUIElementCoordinator(config *UIElementCoordinatorConfig, logger *zap.Log
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	
+	brokerURL := config.BrokerURL
+	if brokerURL == "" {
+		brokerURL = "tcp://mqtt-broker:1883"
+	}
+	
 	// Create MQTT client
 	mqttConfig := &mqtt.Config{
-		BrokerURL:            "tcp://localhost:1883",
+		BrokerURL:            brokerURL,
 		ClientID:             "uielement-coordinator",
 		KeepAlive:            30 * time.Second,
 		ConnectTimeout:       10 * time.Second,

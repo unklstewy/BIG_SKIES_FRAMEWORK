@@ -22,6 +22,8 @@ type DataStoreCoordinator struct {
 // DataStoreCoordinatorConfig holds configuration for the data store coordinator.
 type DataStoreCoordinatorConfig struct {
 	BaseConfig
+	// BrokerURL is the MQTT broker URL
+	BrokerURL string `json:"broker_url"`
 	// DatabaseURL is the PostgreSQL connection string
 	DatabaseURL string `json:"database_url"`
 	// MaxConnections is the maximum number of connections in the pool
@@ -38,9 +40,14 @@ func NewDataStoreCoordinator(config *DataStoreCoordinatorConfig, logger *zap.Log
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	
+	brokerURL := config.BrokerURL
+	if brokerURL == "" {
+		brokerURL = "tcp://mqtt-broker:1883"
+	}
+	
 	// Create MQTT client for coordination messages
 	mqttConfig := &mqtt.Config{
-		BrokerURL:            "tcp://localhost:1883",
+		BrokerURL:            brokerURL,
 		ClientID:             "datastore-coordinator",
 		KeepAlive:            30 * time.Second,
 		ConnectTimeout:       10 * time.Second,
