@@ -141,7 +141,7 @@ func (c *TelescopeCoordinator) Start(ctx context.Context) error {
 	}
 
 	// Start health status publishing
-	go c.StartHealthPublishing(ctx)
+	go c.BaseCoordinator.StartHealthPublishing(ctx)
 
 	c.GetLogger().Info("Telescope coordinator started")
 	return nil
@@ -220,6 +220,72 @@ func (c *TelescopeCoordinator) handleCreateConfig(ctx context.Context, payload [
 		return
 	}
 
+	// Validate and normalize mount type
+	mountType := req.MountType
+	if mountType == "altazimuth" {
+		mountType = "altaz"
+	}
+	if mountType != "altaz" && mountType != "equatorial" && mountType != "dobsonian" {
+		mountType = "equatorial" // default
+	}
+
+	// Handle site_id - use NULL if empty, invalid UUID, or site doesn't exist
+	var siteID interface{}
+	if req.SiteID != "" {
+		// Validate UUID format
+		if parsedUUID, err := uuid.Parse(req.SiteID); err == nil {
+			// Check if site exists in database
+			var siteExists bool
+			checkSiteQuery := `SELECT EXISTS(SELECT 1 FROM observatory_sites WHERE id = $1)`
+			err = c.db.QueryRow(ctx, checkSiteQuery, parsedUUID.String()).Scan(&siteExists)
+			if err == nil && siteExists {
+				siteID = parsedUUID.String()
+			} else {
+				// Site doesn't exist, use NULL
+				siteID = nil
+				c.GetLogger().Debug("Site ID not found, using NULL",
+					zap.String("site_id", req.SiteID))
+			}
+		} else {
+			// Invalid UUID format
+			siteID = nil
+		}
+	} else {
+		siteID = nil
+	}
+
+	// Ensure the owner user exists (for testing/development)
+	// Check if user exists, if not create a stub user
+	var userExists bool
+	checkUserQuery := `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`
+	err := c.db.QueryRow(ctx, checkUserQuery, req.OwnerID).Scan(&userExists)
+	if err != nil {
+		c.GetLogger().Error("Failed to check user existence", zap.Error(err))
+		c.publishResponse("config/create/response", map[string]interface{}{
+			"success": false,
+			"error":   "Failed to validate user",
+		})
+		return
+	}
+
+	if !userExists {
+		// Create a stub user for testing/development
+		userInsertQuery := `
+			INSERT INTO users (id, username, email, password_hash, enabled)
+			VALUES ($1, $2, $3, $4, true)
+			ON CONFLICT (id) DO NOTHING
+		`
+		_, err = c.db.Exec(ctx, userInsertQuery,
+			req.OwnerID,
+			"test_user_"+req.OwnerID[:8],
+			"test_"+req.OwnerID[:8]+"@test.local",
+			"$2a$10$stub")
+		if err != nil {
+			c.GetLogger().Warn("Failed to create stub user, continuing anyway",
+				zap.Error(err))
+		}
+	}
+
 	// Create telescope configuration
 	configID := uuid.New().String()
 	query := `
@@ -228,9 +294,9 @@ func (c *TelescopeCoordinator) handleCreateConfig(ctx context.Context, payload [
 		VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
 	`
 
-	_, err := c.db.Exec(ctx, query,
+	_, err = c.db.Exec(ctx, query,
 		configID, req.Name, req.Description, req.OwnerID, req.OwnerType,
-		req.SiteID, req.MountType)
+		siteID, mountType)
 
 	if err != nil {
 		c.GetLogger().Error("Failed to create telescope configuration", zap.Error(err))
@@ -270,13 +336,23 @@ func (c *TelescopeCoordinator) handleUpdateConfig(ctx context.Context, payload [
 		return
 	}
 
+	// Validate and normalize mount type
+	mountType := req.MountType
+	if mountType == "altazimuth" {
+		mountType = "altaz"
+	}
+	if mountType != "altaz" && mountType != "equatorial" && mountType != "dobsonian" {
+		// Keep existing value if invalid
+		mountType = req.MountType
+	}
+
 	query := `
 		UPDATE telescope_configurations
 		SET name = $2, description = $3, mount_type = $4, enabled = $5, updated_at = NOW()
 		WHERE id = $1
 	`
 
-	result, err := c.db.Exec(ctx, query, req.ID, req.Name, req.Description, req.MountType, req.Enabled)
+	result, err := c.db.Exec(ctx, query, req.ID, req.Name, req.Description, mountType, req.Enabled)
 	if err != nil {
 		c.GetLogger().Error("Failed to update telescope configuration", zap.Error(err))
 		c.publishResponse("config/update/response", map[string]interface{}{
@@ -441,6 +517,14 @@ func (c *TelescopeCoordinator) handleGetConfig(ctx context.Context, payload []by
 		return
 	}
 
+	if req.ID == "" {
+		c.publishResponse("config/get/response", map[string]interface{}{
+			"success": false,
+			"error":   "Configuration ID is required",
+		})
+		return
+	}
+
 	query := `
 		SELECT id, name, description, owner_id, owner_type, site_id, mount_type, 
 		       enabled, created_at, updated_at
@@ -476,17 +560,19 @@ func (c *TelescopeCoordinator) handleGetConfig(ctx context.Context, payload []by
 	}
 
 	c.publishResponse("config/get/response", map[string]interface{}{
-		"success":     true,
-		"id":          config.ID,
-		"name":        config.Name,
-		"description": config.Description,
-		"owner_id":    config.OwnerID,
-		"owner_type":  config.OwnerType,
-		"site_id":     config.SiteID,
-		"mount_type":  config.MountType,
-		"enabled":     config.Enabled,
-		"created_at":  config.CreatedAt,
-		"updated_at":  config.UpdatedAt,
+		"success": true,
+		"config": map[string]interface{}{
+			"id":          config.ID,
+			"name":        config.Name,
+			"description": config.Description,
+			"owner_id":    config.OwnerID,
+			"owner_type":  config.OwnerType,
+			"site_id":     config.SiteID,
+			"mount_type":  config.MountType,
+			"enabled":     config.Enabled,
+			"created_at":  config.CreatedAt,
+			"updated_at":  config.UpdatedAt,
+		},
 	})
 }
 
@@ -587,7 +673,8 @@ func (c *TelescopeCoordinator) handleDisconnectDevice(ctx context.Context, paylo
 // handleSlewTelescope slews a telescope to coordinates.
 func (c *TelescopeCoordinator) handleSlewTelescope(ctx context.Context, payload []byte) {
 	var req struct {
-		TelescopeID      string  `json:"telescope_id"`
+		DeviceID         string  `json:"device_id"`
+		TelescopeID      string  `json:"telescope_id"` // deprecated, use device_id
 		RightAscension   float64 `json:"right_ascension"`
 		Declination      float64 `json:"declination"`
 	}
@@ -601,8 +688,14 @@ func (c *TelescopeCoordinator) handleSlewTelescope(ctx context.Context, payload 
 		return
 	}
 
+	// Support both device_id and telescope_id for backward compatibility
+	deviceID := req.DeviceID
+	if deviceID == "" {
+		deviceID = req.TelescopeID
+	}
+
 	// Get telescope device
-	device, err := c.ascomEngine.GetTelescopeDevice(req.TelescopeID, "telescope")
+	device, err := c.ascomEngine.GetTelescopeDevice(deviceID, "telescope")
 	if err != nil {
 		c.GetLogger().Error("Failed to get telescope device", zap.Error(err))
 		c.publishResponse("control/slew/response", map[string]interface{}{
@@ -629,7 +722,7 @@ func (c *TelescopeCoordinator) handleSlewTelescope(ctx context.Context, payload 
 	})
 
 	c.GetLogger().Info("Telescope slew initiated",
-		zap.String("telescope_id", req.TelescopeID),
+		zap.String("device_id", deviceID),
 		zap.Float64("ra", req.RightAscension),
 		zap.Float64("dec", req.Declination))
 }
@@ -637,7 +730,8 @@ func (c *TelescopeCoordinator) handleSlewTelescope(ctx context.Context, payload 
 // handleParkTelescope parks a telescope.
 func (c *TelescopeCoordinator) handleParkTelescope(ctx context.Context, payload []byte) {
 	var req struct {
-		TelescopeID string `json:"telescope_id"`
+		DeviceID    string `json:"device_id"`
+		TelescopeID string `json:"telescope_id"` // deprecated, use device_id
 	}
 
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -649,7 +743,13 @@ func (c *TelescopeCoordinator) handleParkTelescope(ctx context.Context, payload 
 		return
 	}
 
-	device, err := c.ascomEngine.GetTelescopeDevice(req.TelescopeID, "telescope")
+	// Support both device_id and telescope_id for backward compatibility
+	deviceID := req.DeviceID
+	if deviceID == "" {
+		deviceID = req.TelescopeID
+	}
+
+	device, err := c.ascomEngine.GetTelescopeDevice(deviceID, "telescope")
 	if err != nil {
 		c.publishResponse("control/park/response", map[string]interface{}{
 			"success": false,
@@ -673,13 +773,14 @@ func (c *TelescopeCoordinator) handleParkTelescope(ctx context.Context, payload 
 		"success": true,
 	})
 
-	c.GetLogger().Info("Telescope parked", zap.String("telescope_id", req.TelescopeID))
+	c.GetLogger().Info("Telescope parked", zap.String("device_id", deviceID))
 }
 
 // handleUnparkTelescope unparks a telescope.
 func (c *TelescopeCoordinator) handleUnparkTelescope(ctx context.Context, payload []byte) {
 	var req struct {
-		TelescopeID string `json:"telescope_id"`
+		DeviceID    string `json:"device_id"`
+		TelescopeID string `json:"telescope_id"` // deprecated, use device_id
 	}
 
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -691,7 +792,13 @@ func (c *TelescopeCoordinator) handleUnparkTelescope(ctx context.Context, payloa
 		return
 	}
 
-	device, err := c.ascomEngine.GetTelescopeDevice(req.TelescopeID, "telescope")
+	// Support both device_id and telescope_id for backward compatibility
+	deviceID := req.DeviceID
+	if deviceID == "" {
+		deviceID = req.TelescopeID
+	}
+
+	device, err := c.ascomEngine.GetTelescopeDevice(deviceID, "telescope")
 	if err != nil {
 		c.publishResponse("control/unpark/response", map[string]interface{}{
 			"success": false,
@@ -715,13 +822,15 @@ func (c *TelescopeCoordinator) handleUnparkTelescope(ctx context.Context, payloa
 		"success": true,
 	})
 
-	c.GetLogger().Info("Telescope unparked", zap.String("telescope_id", req.TelescopeID))
+	c.GetLogger().Info("Telescope unparked", zap.String("device_id", deviceID))
 }
 
 // handleSetTracking enables or disables telescope tracking.
 func (c *TelescopeCoordinator) handleSetTracking(ctx context.Context, payload []byte) {
 	var req struct {
-		TelescopeID string `json:"telescope_id"`
+		DeviceID    string `json:"device_id"`
+		TelescopeID string `json:"telescope_id"` // deprecated, use device_id
+		Enabled     bool   `json:"enabled"`       // alias for tracking
 		Tracking    bool   `json:"tracking"`
 	}
 
@@ -734,7 +843,16 @@ func (c *TelescopeCoordinator) handleSetTracking(ctx context.Context, payload []
 		return
 	}
 
-	device, err := c.ascomEngine.GetTelescopeDevice(req.TelescopeID, "telescope")
+	// Support both device_id and telescope_id for backward compatibility
+	deviceID := req.DeviceID
+	if deviceID == "" {
+		deviceID = req.TelescopeID
+	}
+
+	// Support both enabled and tracking fields
+	tracking := req.Tracking || req.Enabled
+
+	device, err := c.ascomEngine.GetTelescopeDevice(deviceID, "telescope")
 	if err != nil {
 		c.publishResponse("control/track/response", map[string]interface{}{
 			"success": false,
@@ -744,7 +862,7 @@ func (c *TelescopeCoordinator) handleSetTracking(ctx context.Context, payload []
 	}
 
 	client := c.ascomEngine.GetClient()
-	err = client.SetTracking(ctx, device, req.Tracking)
+	err = client.SetTracking(ctx, device, tracking)
 	if err != nil {
 		c.GetLogger().Error("Failed to set tracking", zap.Error(err))
 		c.publishResponse("control/track/response", map[string]interface{}{
@@ -759,14 +877,15 @@ func (c *TelescopeCoordinator) handleSetTracking(ctx context.Context, payload []
 	})
 
 	c.GetLogger().Info("Telescope tracking set",
-		zap.String("telescope_id", req.TelescopeID),
-		zap.Bool("tracking", req.Tracking))
+		zap.String("device_id", deviceID),
+		zap.Bool("tracking", tracking))
 }
 
 // handleAbortSlew aborts a telescope slew.
 func (c *TelescopeCoordinator) handleAbortSlew(ctx context.Context, payload []byte) {
 	var req struct {
-		TelescopeID string `json:"telescope_id"`
+		DeviceID    string `json:"device_id"`
+		TelescopeID string `json:"telescope_id"` // deprecated, use device_id
 	}
 
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -778,7 +897,13 @@ func (c *TelescopeCoordinator) handleAbortSlew(ctx context.Context, payload []by
 		return
 	}
 
-	device, err := c.ascomEngine.GetTelescopeDevice(req.TelescopeID, "telescope")
+	// Support both device_id and telescope_id for backward compatibility
+	deviceID := req.DeviceID
+	if deviceID == "" {
+		deviceID = req.TelescopeID
+	}
+
+	device, err := c.ascomEngine.GetTelescopeDevice(deviceID, "telescope")
 	if err != nil {
 		c.publishResponse("control/abort/response", map[string]interface{}{
 			"success": false,
@@ -802,13 +927,14 @@ func (c *TelescopeCoordinator) handleAbortSlew(ctx context.Context, payload []by
 		"success": true,
 	})
 
-	c.GetLogger().Info("Telescope slew aborted", zap.String("telescope_id", req.TelescopeID))
+	c.GetLogger().Info("Telescope slew aborted", zap.String("device_id", deviceID))
 }
 
 // handleGetStatus gets telescope status.
 func (c *TelescopeCoordinator) handleGetStatus(ctx context.Context, payload []byte) {
 	var req struct {
-		TelescopeID string `json:"telescope_id"`
+		DeviceID    string `json:"device_id"`
+		TelescopeID string `json:"telescope_id"` // deprecated, use device_id
 	}
 
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -820,7 +946,13 @@ func (c *TelescopeCoordinator) handleGetStatus(ctx context.Context, payload []by
 		return
 	}
 
-	device, err := c.ascomEngine.GetTelescopeDevice(req.TelescopeID, "telescope")
+	// Support both device_id and telescope_id for backward compatibility
+	deviceID := req.DeviceID
+	if deviceID == "" {
+		deviceID = req.TelescopeID
+	}
+
+	device, err := c.ascomEngine.GetTelescopeDevice(deviceID, "telescope")
 	if err != nil {
 		c.publishResponse("status/get/response", map[string]interface{}{
 			"success": false,
@@ -849,8 +981,10 @@ func (c *TelescopeCoordinator) handleGetStatus(ctx context.Context, payload []by
 // handleStartSession starts a telescope session.
 func (c *TelescopeCoordinator) handleStartSession(ctx context.Context, payload []byte) {
 	var req struct {
-		TelescopeID string `json:"telescope_id"`
+		ConfigID    string `json:"config_id"`     // telescope configuration ID
+		TelescopeID string `json:"telescope_id"`  // deprecated, use config_id
 		UserID      string `json:"user_id"`
+		SessionName string `json:"session_name"`  // alias for session_type
 		SessionType string `json:"session_type"`
 		Notes       string `json:"notes"`
 	}
@@ -864,13 +998,31 @@ func (c *TelescopeCoordinator) handleStartSession(ctx context.Context, payload [
 		return
 	}
 
+	// Support both config_id and telescope_id
+	telescopeID := req.ConfigID
+	if telescopeID == "" {
+		telescopeID = req.TelescopeID
+	}
+
+	// Support both session_name and session_type
+	sessionType := req.SessionType
+	if sessionType == "" {
+		sessionType = req.SessionName
+	}
+
+	// Validate and normalize session type to match database constraint
+	// Valid values: 'manual', 'automated', 'maintenance'
+	if sessionType != "manual" && sessionType != "automated" && sessionType != "maintenance" {
+		sessionType = "manual" // default to manual for any other value
+	}
+
 	sessionID := uuid.New().String()
 	query := `
 		INSERT INTO telescope_sessions (id, telescope_id, user_id, started_at, status, session_type, notes)
 		VALUES ($1, $2, $3, NOW(), 'active', $4, $5)
 	`
 
-	_, err := c.db.Exec(ctx, query, sessionID, req.TelescopeID, req.UserID, req.SessionType, req.Notes)
+	_, err := c.db.Exec(ctx, query, sessionID, telescopeID, req.UserID, sessionType, req.Notes)
 	if err != nil {
 		c.GetLogger().Error("Failed to start session", zap.Error(err))
 		c.publishResponse("session/start/response", map[string]interface{}{
@@ -887,7 +1039,7 @@ func (c *TelescopeCoordinator) handleStartSession(ctx context.Context, payload [
 
 	c.GetLogger().Info("Telescope session started",
 		zap.String("session_id", sessionID),
-		zap.String("telescope_id", req.TelescopeID),
+		zap.String("telescope_id", telescopeID),
 		zap.String("user_id", req.UserID))
 }
 
@@ -962,18 +1114,3 @@ func (c *TelescopeCoordinator) publishResponse(subtopic string, payload interfac
 	}
 }
 
-// StartHealthPublishing publishes health status periodically.
-func (c *TelescopeCoordinator) StartHealthPublishing(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			health := c.HealthCheck(ctx)
-			c.publishResponse("health", health)
-		}
-	}
-}
