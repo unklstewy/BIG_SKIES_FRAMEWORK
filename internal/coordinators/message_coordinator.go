@@ -40,17 +40,9 @@ func NewMessageCoordinator(config *MessageCoordinatorConfig, logger *zap.Logger)
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	
-	// Create MQTT client configuration
-	mqttConfig := &mqtt.Config{
-		BrokerURL:            fmt.Sprintf("%s:%d", config.BrokerURL, config.BrokerPort),
-		ClientID:             "message-coordinator",
-		KeepAlive:            30 * time.Second,
-		ConnectTimeout:       10 * time.Second,
-		AutoReconnect:        true,
-		MaxReconnectInterval: 5 * time.Minute,
-	}
-	
-	mqttClient, err := mqtt.NewClient(mqttConfig, logger)
+	// Create MQTT client
+	brokerURL := fmt.Sprintf("%s:%d", config.BrokerURL, config.BrokerPort)
+	mqttClient, err := CreateMQTTClient(brokerURL, mqtt.CoordinatorMessage, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}

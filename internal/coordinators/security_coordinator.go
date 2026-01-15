@@ -56,7 +56,11 @@ func NewSecurityCoordinator(config *SecurityConfig, logger *zap.Logger) (*Securi
 	}
 
 	// Create MQTT client
-	mqttClient, err := mqtt.NewClient(config.MQTTConfig, logger)
+	brokerURL := ""
+	if config.MQTTConfig != nil {
+		brokerURL = config.MQTTConfig.BrokerURL
+	}
+	mqttClient, err := CreateMQTTClient(brokerURL, mqtt.CoordinatorSecurity, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}

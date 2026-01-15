@@ -236,6 +236,11 @@ func (bc *BaseCoordinator) StartHealthPublishing(ctx context.Context) {
 
 // publishHealth publishes a single health status update.
 func (bc *BaseCoordinator) publishHealth(ctx context.Context) {
+	if bc.mqttClient == nil {
+		bc.logger.Debug("Skipping health publish: MQTT client is nil")
+		return
+	}
+
 	health := bc.HealthCheck(ctx)
 	topic := mqtt.CoordinatorHealthTopic(bc.name)
 
@@ -252,6 +257,25 @@ func (bc *BaseCoordinator) publishHealth(ctx context.Context) {
 			zap.String("topic", topic),
 			zap.Error(err))
 	}
+}
+
+// CreateMQTTClient creates and configures an MQTT client for a coordinator.
+// This centralizes MQTT configuration to ensure consistency across all coordinators.
+func CreateMQTTClient(brokerURL, clientID string, logger *zap.Logger) (*mqtt.Client, error) {
+	if brokerURL == "" {
+		brokerURL = "tcp://mqtt-broker:1883"
+	}
+
+	mqttConfig := &mqtt.Config{
+		BrokerURL:            brokerURL,
+		ClientID:             clientID,
+		KeepAlive:            30 * time.Second,
+		ConnectTimeout:       10 * time.Second,
+		AutoReconnect:        true,
+		MaxReconnectInterval: 5 * time.Minute,
+	}
+
+	return mqtt.NewClient(mqttConfig, logger)
 }
 
 // Verify BaseCoordinator implements interfaces

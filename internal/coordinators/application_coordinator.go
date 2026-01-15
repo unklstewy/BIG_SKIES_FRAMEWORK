@@ -60,22 +60,8 @@ func NewApplicationCoordinator(config *ApplicationCoordinatorConfig, logger *zap
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	
-	brokerURL := config.BrokerURL
-	if brokerURL == "" {
-		brokerURL = "tcp://mqtt-broker:1883"
-	}
-	
 	// Create MQTT client
-	mqttConfig := &mqtt.Config{
-		BrokerURL:            brokerURL,
-		ClientID:             "application-coordinator",
-		KeepAlive:            30 * time.Second,
-		ConnectTimeout:       10 * time.Second,
-		AutoReconnect:        true,
-		MaxReconnectInterval: 5 * time.Minute,
-	}
-	
-	mqttClient, err := mqtt.NewClient(mqttConfig, logger)
+	mqttClient, err := CreateMQTTClient(config.BrokerURL, mqtt.CoordinatorApplication, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
