@@ -1,0 +1,138 @@
+{
+  "BIG SKIES FRONTEND FLUTTER": {
+    "desc": "Front End Development - On Hold Until Backend Services are Completed",
+    "architecture": "Flutter"
+  },
+  "BIG SKIES FRONTEND UNITY": {
+    "desc": "Front End Development - On Hold Until Backend Services are Completed",
+    "architecture": "Unity Engine"
+  },
+  "BIG SKIES FRONTEND PythonGTK": {
+    "desc": "Front End Development - On Hold Until Backend Services are Completed",
+    "architecture": "Python and GTK"
+  },
+  "BIG SKIES BACKEND": {
+    "desc": "BACKEND SERVICES AND API COORDINATION ENGINE",
+    "BUS": {
+      "desc": "MESSAGE BUS ARCHITECTURE - mqtt exchange format JSON",
+      "COORDINATORS": {
+        "message-coordinator": {
+          "desc": "Message Bus and Interchange Message Coordinator",
+          "healthchk_engine": {
+            "message-bus": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "api_message-setup-wizard": {
+            "desc": "Responsible for configuration wizard ui API",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          }
+        },
+        "applicatin-svc-coordinator": {
+          "desc": "Tracks & Monitors Application Micro-Services",
+          "healthchk_engine": {
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "api_service-setup-wizard": {
+            "desc": "Responsible for configuration wizard ui API",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          }
+        },
+        "security-coordinator": {
+          "desc": "Responsible for Coordinating Applcation Security Model, Roles, Groups, Accounts, Permissions, SSL Configuration (Let's Encrypt)",
+          "app_security_engine": {
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "acct_security_engine": {
+            "desc": "Responsible for all user,group, role based permissions management",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "tls_security_engine": {
+            "desc": "Responsible for coordinating all tls/ssl configuration, obtaining certificates for all application requirements",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "api_security-setup-wizard": {
+            "desc": "Responsible for configuration wizard ui API",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          }
+        },
+        "telescope-coordinator": {
+          "desc": "Responsible for Coordinating Telescope Configurations",
+          "healthchk_engine": {
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "ascom-engine": {
+            "desc": "Responsible for ascom-alpaca configurations on a per telescope basis. ALL ASCOM ALPACA ENDPOINTS SHOULD BE SUPPORTED",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "api_ascom-setup-wizard": {
+            "desc": "Responsible for configuration wizard ui API ALL ASCOM ALPACA ENDPOINTS SHOULD BE SUPPORTED",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "api_telescope-setup-wizard": {
+            "desc": "Responsible for configuration wizard ui API: Interfaces with api_ascom-setup-wizard",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          }
+        },
+        "ui-element-coordinator": {
+          "desc": "Responsible for ui element tracking, provisioning ui from plugins - scans plugin ui API to extend base ui",
+          "helthchk_engine": {
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          }
+        },
+        "plugin-coordinator": {
+          "desc": "Responsible for all aspects of plugin management, installation, verfication, versioning, updates, removal etc. tracked by instance guid",
+          "helthchk_engine": {
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "svc_plugin-scanner": {
+            "desc": "Responsible for scanning plugin configurations and verifying plugin validations",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          }
+        },
+        "data-store-coordinator": {
+          "desc": "Responsible for all aspects of data storage management, installation, verfication, versioning, updates, removal etc. PostGresSqL",
+          "helthchk_engine": {
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          },
+          "svc_database-manager": {
+            "desc": "Responsible for all database configurations and verifying configurations, data management, backups, restores, etc.",
+            "healtcheck-api": {},
+            "healthcheck-reporter": {},
+            "healthcheck-diagnostics": {}
+          }
+        }
+      }
+    }
+  }
+}

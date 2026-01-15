@@ -1,0 +1,161 @@
+version: '3.8'
+
+services:
+  # MQTT Broker
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0
+    container_name: bigskies-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mqtt-data:/mosquitto/data
+      - mqtt-logs:/mosquitto/log
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: bigskies-postgres
+    environment:
+      POSTGRES_DB: bigskies
+      POSTGRES_USER: bigskies
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bigskies"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Message Coordinator
+  message-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.coordinator
+      args:
+        COORDINATOR_NAME: message-coordinator
+    container_name: bigskies-message-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    command: ["--broker-url=mqtt-broker", "--broker-port=1883", "--log-level=${LOG_LEVEL:-info}"]
+    depends_on:
+      - mqtt-broker
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
+  # Data Store Coordinator
+  datastore-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.coordinator
+      args:
+        COORDINATOR_NAME: datastore-coordinator
+    container_name: bigskies-datastore-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=postgres://bigskies:${POSTGRES_PASSWORD:-changeme}@postgres:5432/bigskies?sslmode=disable
+    command: [
+      "--database-url=postgres://bigskies:${POSTGRES_PASSWORD:-changeme}@postgres:5432/bigskies?sslmode=disable",
+      "--max-connections=25",
+      "--min-connections=5",
+      "--log-level=${LOG_LEVEL:-info}"
+    ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt-broker:
+        condition: service_started
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
+  # Application Coordinator
+  application-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.coordinator
+      args:
+        COORDINATOR_NAME: application-coordinator
+    container_name: bigskies-application-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    command: [
+      "--check-interval=30s",
+      "--service-timeout=90s",
+      "--log-level=${LOG_LEVEL:-info}"
+    ]
+    depends_on:
+      - mqtt-broker
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
+  # Plugin Coordinator
+  plugin-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.coordinator
+      args:
+        COORDINATOR_NAME: plugin-coordinator
+    container_name: bigskies-plugin-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    command: [
+      "--plugin-dir=/var/lib/bigskies/plugins",
+      "--scan-interval=5m",
+      "--log-level=${LOG_LEVEL:-info}"
+    ]
+    volumes:
+      - plugin-data:/var/lib/bigskies/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - mqtt-broker
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
+  # UI Element Coordinator
+  uielement-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.coordinator
+      args:
+        COORDINATOR_NAME: uielement-coordinator
+    container_name: bigskies-uielement-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    command: [
+      "--scan-interval=10m",
+      "--log-level=${LOG_LEVEL:-info}"
+    ]
+    depends_on:
+      - mqtt-broker
+      - plugin-coordinator
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
+networks:
+  bigskies-network:
+    driver: bridge
+
+volumes:
+  mqtt-data:
+    driver: local
+  mqtt-logs:
+    driver: local
+  postgres-data:
+    driver: local
+  plugin-data:
+    driver: local

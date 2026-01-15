@@ -1,0 +1,55 @@
+# Multi-stage build for BIG SKIES coordinators
+FROM golang:1.25-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build argument for which coordinator to build
+ARG COORDINATOR_NAME
+RUN if [ -z "$COORDINATOR_NAME" ]; then echo "COORDINATOR_NAME is required" && exit 1; fi
+
+# Build the coordinator binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" \
+    -o /app/coordinator ./cmd/${COORDINATOR_NAME}/
+
+# Final stage - minimal runtime image
+FROM alpine:latest
+
+# Install ca-certificates for HTTPS
+RUN apk --no-cache add ca-certificates
+
+# Create non-root user
+RUN addgroup -g 1000 bigskies && \
+    adduser -D -u 1000 -G bigskies bigskies
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/coordinator /app/coordinator
+
+# Change ownership
+RUN chown -R bigskies:bigskies /app
+
+# Switch to non-root user
+USER bigskies
+
+# Expose default ports (can be overridden)
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["/app/coordinator", "--help"] || exit 1
+
+# Run the coordinator
+ENTRYPOINT ["/app/coordinator"]
