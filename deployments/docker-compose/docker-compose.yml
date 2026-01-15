@@ -146,6 +146,37 @@ services:
       - bigskies-network
     restart: unless-stopped
 
+  # Security Coordinator
+  security-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.coordinator
+      args:
+        COORDINATOR_NAME: security-coordinator
+    container_name: bigskies-security-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=postgres://bigskies:${POSTGRES_PASSWORD:-changeme}@postgres:5432/bigskies?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET:-changeme_jwt_secret_in_production}
+    command: [
+      "--broker-host=mqtt-broker",
+      "--broker-port=1883",
+      "--database-url=postgres://bigskies:${POSTGRES_PASSWORD:-changeme}@postgres:5432/bigskies?sslmode=disable",
+      "--jwt-secret=${JWT_SECRET:-changeme_jwt_secret_in_production}",
+      "--token-duration=24h",
+      "--log-level=${LOG_LEVEL:-info}"
+    ]
+    volumes:
+      - cert-data:/app/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt-broker:
+        condition: service_started
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
 networks:
   bigskies-network:
     driver: bridge
@@ -158,4 +189,6 @@ volumes:
   postgres-data:
     driver: local
   plugin-data:
+    driver: local
+  cert-data:
     driver: local
