@@ -19,6 +19,7 @@ type AppSecurityEngine struct {
 	jwtSecret     []byte
 	tokenDuration time.Duration
 	apiKeys       map[string]*APIKey // keyed by API key string
+	blacklistedTokens map[string]time.Time // token ID -> expiry time for cleanup
 	mu            sync.RWMutex
 	logger        *zap.Logger
 }
@@ -48,22 +49,30 @@ func NewAppSecurityEngine(jwtSecret string, tokenDuration time.Duration, logger 
 	}
 
 	return &AppSecurityEngine{
-		jwtSecret:     []byte(jwtSecret),
-		tokenDuration: tokenDuration,
-		apiKeys:       make(map[string]*APIKey),
-		logger:        logger.With(zap.String("engine", "app_security")),
+		jwtSecret:         []byte(jwtSecret),
+		tokenDuration:     tokenDuration,
+		apiKeys:           make(map[string]*APIKey),
+		blacklistedTokens: make(map[string]time.Time),
+		logger:            logger.With(zap.String("engine", "app_security")),
 	}
 }
 
 // GenerateToken creates a new JWT token for a user.
 func (e *AppSecurityEngine) GenerateToken(userID, username, email string) (string, time.Time, error) {
 	expiresAt := time.Now().Add(e.tokenDuration)
+	// Generate unique token ID for blacklist tracking
+	tokenIDBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenIDBytes); err != nil {
+		return "", time.Time{}, fmt.Errorf("failed to generate token ID: %w", err)
+	}
+	tokenID := hex.EncodeToString(tokenIDBytes)
 
 	claims := &JWTClaims{
 		UserID:   userID,
 		Username: username,
 		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
@@ -101,6 +110,16 @@ func (e *AppSecurityEngine) ValidateToken(tokenString string) (*JWTClaims, error
 	}
 
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		// Check if token is blacklisted
+		e.mu.RLock()
+		_, blacklisted := e.blacklistedTokens[claims.ID]
+		e.mu.RUnlock()
+		
+		if blacklisted {
+			e.logger.Warn("Attempted to use blacklisted token", zap.String("user_id", claims.UserID))
+			return nil, fmt.Errorf("token has been revoked")
+		}
+		
 		e.logger.Debug("Token validated successfully", zap.String("user_id", claims.UserID))
 		return claims, nil
 	}
@@ -235,4 +254,57 @@ func (e *AppSecurityEngine) RefreshToken(tokenString string) (string, time.Time,
 	}
 
 	return e.GenerateToken(claims.UserID, claims.Username, claims.Email)
+}
+
+// RevokeToken adds a token to the blacklist, preventing further use.
+func (e *AppSecurityEngine) RevokeToken(tokenString string) error {
+	// Parse token to get claims
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return e.jwtSecret, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok {
+		return fmt.Errorf("invalid token claims")
+	}
+
+	// Add to blacklist with expiry time for cleanup
+	e.mu.Lock()
+	e.blacklistedTokens[claims.ID] = claims.ExpiresAt.Time
+	e.mu.Unlock()
+
+	e.logger.Info("Token revoked",
+		zap.String("token_id", claims.ID),
+		zap.String("user_id", claims.UserID))
+
+	return nil
+}
+
+// CleanupExpiredBlacklistedTokens removes expired tokens from the blacklist.
+// Should be called periodically to prevent memory growth.
+func (e *AppSecurityEngine) CleanupExpiredBlacklistedTokens() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	now := time.Now()
+	count := 0
+	for tokenID, expiresAt := range e.blacklistedTokens {
+		if now.After(expiresAt) {
+			delete(e.blacklistedTokens, tokenID)
+			count++
+		}
+	}
+
+	if count > 0 {
+		e.logger.Debug("Cleaned up expired blacklisted tokens", zap.Int("count", count))
+	}
+
+	return count
 }

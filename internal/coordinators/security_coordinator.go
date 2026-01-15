@@ -110,6 +110,7 @@ func (c *SecurityCoordinator) Start(ctx context.Context) error {
 	// Subscribe to security topics
 	topics := []string{
 		mqtt.NewTopicBuilder().Component("security").Action("auth").Resource("login").Build(),
+		mqtt.NewTopicBuilder().Component("security").Action("auth").Resource("logout").Build(),
 		mqtt.NewTopicBuilder().Component("security").Action("auth").Resource("validate").Build(),
 		mqtt.NewTopicBuilder().Component("security").Action("user").Resource("create").Build(),
 		mqtt.NewTopicBuilder().Component("security").Action("user").Resource("update").Build(),
@@ -155,6 +156,8 @@ func (c *SecurityCoordinator) handleMessage(topic string, payload []byte) {
 	switch topic {
 	case "bigskies/coordinator/security/auth/login":
 		c.handleLogin(ctx, payload)
+	case "bigskies/coordinator/security/auth/logout":
+		c.handleLogout(ctx, payload)
 	case "bigskies/coordinator/security/auth/validate":
 		c.handleValidateToken(ctx, payload)
 	case "bigskies/coordinator/security/user/create":
@@ -217,6 +220,32 @@ func (c *SecurityCoordinator) handleLogin(ctx context.Context, payload []byte) {
 
 	c.publishResponse("auth/login/response", response)
 	c.GetLogger().Info("User logged in successfully", zap.String("username", req.Username))
+}
+
+// handleLogout processes logout requests by revoking the token.
+func (c *SecurityCoordinator) handleLogout(ctx context.Context, payload []byte) {
+	var req models.TokenValidationRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		c.GetLogger().Error("Failed to unmarshal logout request", zap.Error(err))
+		return
+	}
+
+	// Revoke the token
+	err := c.appSecEngine.RevokeToken(req.Token)
+	if err != nil {
+		c.GetLogger().Error("Failed to revoke token", zap.Error(err))
+		c.publishResponse("auth/logout/response", map[string]interface{}{
+			"success": false,
+			"error":   "Failed to logout",
+		})
+		return
+	}
+
+	c.publishResponse("auth/logout/response", map[string]interface{}{
+		"success": true,
+		"message": "Logout successful",
+	})
+	c.GetLogger().Info("User logged out successfully")
 }
 
 // handleValidateToken validates JWT tokens.
