@@ -1,13 +1,15 @@
-.PHONY: help build test lint fmt clean install-tools
+.PHONY: help build test test-unit test-integration test-coverage lint fmt clean install-tools
 
 # Default target
 help:
 	@echo "BIG SKIES Framework - Makefile Commands"
 	@echo "========================================"
-	@echo "  make build         - Build all services"
-	@echo "  make test          - Run all tests"
-	@echo "  make test-coverage - Run tests with coverage"
-	@echo "  make lint          - Run linters"
+	@echo "  make build            - Build all services"
+	@echo "  make test             - Run all tests (unit + integration)"
+	@echo "  make test-unit        - Run unit tests only"
+	@echo "  make test-integration - Run integration tests (requires services)"
+	@echo "  make test-coverage    - Run tests with coverage"
+	@echo "  make lint             - Run linters"
 	@echo "  make fmt           - Format code"
 	@echo "  make clean         - Clean build artifacts"
 	@echo "  make install-tools - Install development tools"
@@ -20,10 +22,24 @@ build:
 	@echo "Building all services..."
 	@go build -v -o bin/ ./cmd/...
 
-# Run tests
+# Run all tests (unit + integration)
 test:
-	@echo "Running tests..."
+	@echo "Running all tests..."
 	@go test -v ./...
+
+# Run unit tests only (skip integration tests)
+test-unit:
+	@echo "Running unit tests..."
+	@go test -v -short ./...
+
+# Run integration tests only (requires services to be running)
+test-integration:
+	@echo "Running integration tests..."
+	@echo "Checking if services are running..."
+	@docker ps --filter "name=bigskies-mqtt" --format "{{.Names}}" | grep -q bigskies-mqtt || \
+		(echo "ERROR: Services not running. Start with 'make docker-up' first." && exit 1)
+	@echo "Services detected, running integration tests..."
+	@go test -v ./test/integration/... -count=1
 
 # Run tests with coverage
 test-coverage:
