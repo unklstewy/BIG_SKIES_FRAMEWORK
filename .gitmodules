@@ -1,0 +1,3 @@
+[submodule "external/ASCOM.Alpaca.Simulators"]
+	path = external/ASCOM.Alpaca.Simulators
+	url = git@github.com:ASCOMInitiative/ASCOM.Alpaca.Simulators.git
