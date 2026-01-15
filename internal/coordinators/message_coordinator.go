@@ -3,6 +3,7 @@ package coordinators
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -54,7 +55,7 @@ func NewMessageCoordinator(config *MessageCoordinatorConfig, logger *zap.Logger)
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
 	
-	base := NewBaseCoordinator("message-coordinator", mqttClient, logger)
+	base := NewBaseCoordinator(mqtt.CoordinatorMessage, mqttClient, logger)
 	
 	mc := &MessageCoordinator{
 		BaseCoordinator:  base,
@@ -83,7 +84,10 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 	if err := mc.subscribeHealthTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to health topics: %w", err)
 	}
-	
+
+	// Start health status publishing
+	go mc.StartHealthPublishing(ctx)
+
 	mc.GetLogger().Info("Message coordinator started successfully")
 	return nil
 }
@@ -151,11 +155,23 @@ func (mc *MessageCoordinator) handleHealthMessage(topic string, payload []byte) 
 		zap.String("topic", topic),
 		zap.Int("size", len(payload)))
 	
+	// First unmarshal the entire MQTT message envelope
 	var msg mqtt.Message
-	if err := msg.UnmarshalPayload(&payload); err != nil {
-		mc.GetLogger().Error("Failed to unmarshal health message", zap.Error(err))
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		mc.GetLogger().Error("Failed to unmarshal health message envelope", zap.Error(err))
 		return err
 	}
+	
+	// Then unmarshal the health check result from the payload
+	var health healthcheck.Result
+	if err := msg.UnmarshalPayload(&health); err != nil {
+		mc.GetLogger().Error("Failed to unmarshal health payload", zap.Error(err))
+		return err
+	}
+	
+	mc.GetLogger().Debug("Processed health message",
+		zap.String("component", health.ComponentName),
+		zap.String("status", string(health.Status)))
 	
 	// TODO: Store and aggregate health data
 	return nil

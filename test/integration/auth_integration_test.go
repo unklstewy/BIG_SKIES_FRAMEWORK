@@ -15,7 +15,8 @@ import (
 
 const (
 	mqttBroker = "tcp://localhost:1883"
-	testTimeout = 10 * time.Second
+	// testTimeout is set to health publish interval (30s) + 15% = 34.5s
+	testTimeout = 35 * time.Second
 )
 
 // TestAuthenticationFlow tests the complete authentication lifecycle:

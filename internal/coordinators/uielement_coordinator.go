@@ -98,7 +98,7 @@ func NewUIElementCoordinator(config *UIElementCoordinatorConfig, logger *zap.Log
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
 	
-	base := NewBaseCoordinator("uielement-coordinator", mqttClient, logger)
+	base := NewBaseCoordinator(mqtt.CoordinatorUIElement, mqttClient, logger)
 	
 	uec := &UIElementCoordinator{
 		BaseCoordinator: base,
@@ -130,7 +130,10 @@ func (uec *UIElementCoordinator) Start(ctx context.Context) error {
 	
 	// Start UI API scanner
 	go uec.scanUIElements(ctx)
-	
+
+	// Start health status publishing
+	go uec.StartHealthPublishing(ctx)
+
 	uec.GetLogger().Info("UI element coordinator started successfully")
 	return nil
 }

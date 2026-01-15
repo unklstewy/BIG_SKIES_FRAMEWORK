@@ -80,7 +80,7 @@ func NewApplicationCoordinator(config *ApplicationCoordinatorConfig, logger *zap
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
 	
-	base := NewBaseCoordinator("application-coordinator", mqttClient, logger)
+	base := NewBaseCoordinator(mqtt.CoordinatorApplication, mqttClient, logger)
 	
 	ac := &ApplicationCoordinator{
 		BaseCoordinator: base,
@@ -112,7 +112,10 @@ func (ac *ApplicationCoordinator) Start(ctx context.Context) error {
 	
 	// Start registry monitoring
 	go ac.monitorServices(ctx)
-	
+
+	// Start health status publishing
+	go ac.StartHealthPublishing(ctx)
+
 	ac.GetLogger().Info("Application coordinator started successfully")
 	return nil
 }

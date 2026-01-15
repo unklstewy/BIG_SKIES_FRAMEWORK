@@ -206,6 +206,54 @@ func (bc *BaseCoordinator) GetConfig() interface{} {
 	return bc.config
 }
 
+// StartHealthPublishing starts periodic health status publishing to MQTT.
+// This should be called in the coordinator's Start() method as a goroutine.
+func (bc *BaseCoordinator) StartHealthPublishing(ctx context.Context) {
+	if bc.mqttClient == nil {
+		bc.logger.Warn("Cannot publish health: MQTT client is nil")
+		return
+	}
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	// Small delay to allow MQTT subscriptions to be established
+	time.Sleep(500 * time.Millisecond)
+	
+	// Publish initial health
+	bc.publishHealth(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			bc.logger.Debug("Health publishing stopped")
+			return
+		case <-ticker.C:
+			bc.publishHealth(ctx)
+		}
+	}
+}
+
+// publishHealth publishes a single health status update.
+func (bc *BaseCoordinator) publishHealth(ctx context.Context) {
+	health := bc.HealthCheck(ctx)
+	topic := mqtt.CoordinatorHealthTopic(bc.name)
+
+	// Wrap health result in MQTT message envelope
+	msg, err := mqtt.NewMessage(mqtt.MessageTypeStatus, "coordinator:"+bc.name, health)
+	if err != nil {
+		bc.logger.Error("Failed to create health message",
+			zap.Error(err))
+		return
+	}
+
+	if err := bc.mqttClient.PublishJSON(topic, 1, false, msg); err != nil {
+		bc.logger.Error("Failed to publish health status",
+			zap.String("topic", topic),
+			zap.Error(err))
+	}
+}
+
 // Verify BaseCoordinator implements interfaces
 var _ api.Coordinator = (*BaseCoordinator)(nil)
 var _ api.Configurable = (*BaseCoordinator)(nil)

@@ -61,7 +61,7 @@ func NewSecurityCoordinator(config *SecurityConfig, logger *zap.Logger) (*Securi
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
 
-	baseCoord := NewBaseCoordinator(config.Name, mqttClient, logger)
+	baseCoord := NewBaseCoordinator(mqtt.CoordinatorSecurity, mqttClient, logger)
 
 	// Initialize security engines
 	appSecEngine := security.NewAppSecurityEngine(config.JWTSecret, config.TokenDuration, logger)
@@ -131,8 +131,8 @@ func (c *SecurityCoordinator) Start(ctx context.Context) error {
 		c.GetLogger().Info("Subscribed to topic", zap.String("topic", topic))
 	}
 
-	// Publish health status
-	go c.publishHealthStatus(ctx)
+	// Start health status publishing
+	go c.StartHealthPublishing(ctx)
 
 	c.GetLogger().Info("Security coordinator started")
 	return nil
@@ -509,26 +509,3 @@ func (c *SecurityCoordinator) publishResponse(subtopic string, payload interface
 	}
 }
 
-// publishHealthStatus publishes health status periodically.
-func (c *SecurityCoordinator) publishHealthStatus(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			health := c.HealthCheck(ctx)
-			topic := mqtt.NewTopicBuilder().
-				Component("security").
-				Action("health").
-				Resource("status").
-				Build()
-
-			if err := c.GetMQTTClient().PublishJSON(topic, 1, false, health); err != nil {
-				c.GetLogger().Error("Failed to publish health status", zap.Error(err))
-			}
-		}
-	}
-}

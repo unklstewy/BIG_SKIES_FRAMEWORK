@@ -98,7 +98,7 @@ func NewPluginCoordinator(config *PluginCoordinatorConfig, logger *zap.Logger) (
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
 	
-	base := NewBaseCoordinator("plugin-coordinator", mqttClient, logger)
+	base := NewBaseCoordinator(mqtt.CoordinatorPlugin, mqttClient, logger)
 	
 	pc := &PluginCoordinator{
 		BaseCoordinator: base,
@@ -131,7 +131,10 @@ func (pc *PluginCoordinator) Start(ctx context.Context) error {
 	
 	// Start plugin scanner
 	go pc.scanPlugins(ctx)
-	
+
+	// Start health status publishing
+	go pc.StartHealthPublishing(ctx)
+
 	pc.GetLogger().Info("Plugin coordinator started successfully")
 	return nil
 }

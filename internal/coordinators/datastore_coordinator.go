@@ -60,7 +60,7 @@ func NewDataStoreCoordinator(config *DataStoreCoordinatorConfig, logger *zap.Log
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
 	
-	base := NewBaseCoordinator("datastore-coordinator", mqttClient, logger)
+	base := NewBaseCoordinator(mqtt.CoordinatorDataStore, mqttClient, logger)
 	
 	dsc := &DataStoreCoordinator{
 		BaseCoordinator: base,
@@ -116,7 +116,10 @@ func (dsc *DataStoreCoordinator) Start(ctx context.Context) error {
 		pool.Close()
 		return err
 	}
-	
+
+	// Start health status publishing
+	go dsc.StartHealthPublishing(ctx)
+
 	dsc.GetLogger().Info("Data store coordinator started successfully")
 	return nil
 }

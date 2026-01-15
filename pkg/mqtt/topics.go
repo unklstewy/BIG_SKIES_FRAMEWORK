@@ -79,6 +79,7 @@ func CoordinatorHealthTopic(coordinator string) string {
 	return NewTopicBuilder().
 		Component(coordinator).
 		Action(ActionHealth).
+		Resource("status").
 		Build()
 }
 
