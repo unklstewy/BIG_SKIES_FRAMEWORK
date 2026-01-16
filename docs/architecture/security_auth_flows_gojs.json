@@ -1,0 +1,375 @@
+{
+  "class": "GraphLinksModel",
+  "nodeDataArray": [
+    {
+      "key": "client",
+      "text": "Client Application",
+      "category": "actor",
+      "description": "Frontend or API client initiating requests"
+    },
+    {
+      "key": "login-request",
+      "text": "Login Request",
+      "category": "action",
+      "topic": "bigskies/coordinator/security/auth/login",
+      "payload": {
+        "username": "string",
+        "password": "string (plaintext)"
+      }
+    },
+    {
+      "key": "security-coordinator",
+      "text": "Security Coordinator",
+      "category": "coordinator",
+      "description": "Handles authentication and authorization"
+    },
+    {
+      "key": "authenticate",
+      "text": "Authenticate User",
+      "category": "process",
+      "steps": [
+        "1. Query users table by username",
+        "2. Compare bcrypt hash of password",
+        "3. Check user.enabled = true",
+        "4. Return user if valid, error if not"
+      ]
+    },
+    {
+      "key": "generate-jwt",
+      "text": "Generate JWT Token",
+      "category": "process",
+      "steps": [
+        "1. Create JWT claims (user_id, username, email, exp)",
+        "2. Sign with HMAC-SHA256 using JWT_SECRET",
+        "3. Set expiration (default: 24 hours)",
+        "4. Return token + expires_at timestamp"
+      ]
+    },
+    {
+      "key": "login-response",
+      "text": "Login Response",
+      "category": "response",
+      "topic": "bigskies/coordinator/security/response/auth/login/response",
+      "success_payload": {
+        "token": "JWT string",
+        "expires_at": "timestamp",
+        "user": {
+          "id": "UUID",
+          "username": "string",
+          "email": "string",
+          "enabled": "boolean"
+        }
+      },
+      "error_payload": {
+        "success": false,
+        "error": "Authentication failed"
+      }
+    },
+    {
+      "key": "protected-request",
+      "text": "Protected Request",
+      "category": "action",
+      "description": "Any request requiring authentication",
+      "headers": {
+        "Authorization": "Bearer <JWT token>"
+      }
+    },
+    {
+      "key": "validate-token",
+      "text": "Validate Token",
+      "category": "process",
+      "topic": "bigskies/coordinator/security/auth/validate",
+      "steps": [
+        "1. Extract JWT from Authorization header",
+        "2. Verify signature using JWT_SECRET",
+        "3. Check expiration timestamp",
+        "4. Check if token is revoked (logout)",
+        "5. Extract user_id from claims"
+      ]
+    },
+    {
+      "key": "check-permissions",
+      "text": "Check Permissions (RBAC)",
+      "category": "process",
+      "topic": "bigskies/coordinator/security/permission/check",
+      "steps": [
+        "1. Get user's roles (user_roles table)",
+        "2. Get user's groups (user_groups table)",
+        "3. Get role permissions (role_permissions)",
+        "4. Get group permissions (group_permissions)",
+        "5. Check resource + action against permissions",
+        "6. Apply deny-first policy",
+        "7. Return allow/deny"
+      ]
+    },
+    {
+      "key": "permission-result",
+      "text": "Permission Result",
+      "category": "decision",
+      "allow": "Proceed with request",
+      "deny": "Return 403 Forbidden"
+    },
+    {
+      "key": "logout-request",
+      "text": "Logout Request",
+      "category": "action",
+      "topic": "bigskies/coordinator/security/auth/logout",
+      "payload": {
+        "token": "JWT string"
+      }
+    },
+    {
+      "key": "revoke-token",
+      "text": "Revoke Token",
+      "category": "process",
+      "steps": [
+        "1. Add token to revocation list (in-memory)",
+        "2. Token will fail validation on next use",
+        "3. Revoked tokens expire naturally with JWT expiration"
+      ]
+    },
+    {
+      "key": "logout-response",
+      "text": "Logout Response",
+      "category": "response",
+      "topic": "bigskies/coordinator/security/response/auth/logout/response",
+      "payload": {
+        "success": true
+      }
+    },
+    {
+      "key": "users-table",
+      "text": "users table",
+      "category": "database",
+      "fields": ["id", "username", "email", "password_hash (bcrypt)", "enabled"]
+    },
+    {
+      "key": "roles-tables",
+      "text": "RBAC Tables",
+      "category": "database",
+      "tables": [
+        "roles",
+        "groups",
+        "permissions",
+        "user_roles",
+        "user_groups",
+        "role_permissions",
+        "group_permissions"
+      ]
+    }
+  ],
+  "linkDataArray": [
+    {
+      "from": "client",
+      "to": "login-request",
+      "category": "flow",
+      "text": "1. Send credentials"
+    },
+    {
+      "from": "login-request",
+      "to": "security-coordinator",
+      "category": "mqtt",
+      "text": "MQTT Publish"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "authenticate",
+      "category": "flow",
+      "text": "2. Verify credentials"
+    },
+    {
+      "from": "authenticate",
+      "to": "users-table",
+      "category": "database-query",
+      "text": "Query by username"
+    },
+    {
+      "from": "users-table",
+      "to": "authenticate",
+      "category": "database-result",
+      "text": "Return user record"
+    },
+    {
+      "from": "authenticate",
+      "to": "generate-jwt",
+      "category": "flow",
+      "text": "3. User valid"
+    },
+    {
+      "from": "generate-jwt",
+      "to": "login-response",
+      "category": "flow",
+      "text": "4. Token created"
+    },
+    {
+      "from": "login-response",
+      "to": "security-coordinator",
+      "category": "flow",
+      "text": "Prepare response"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "client",
+      "category": "mqtt",
+      "text": "5. Send token"
+    },
+    {
+      "from": "client",
+      "to": "protected-request",
+      "category": "flow",
+      "text": "6. Include JWT in request"
+    },
+    {
+      "from": "protected-request",
+      "to": "validate-token",
+      "category": "flow",
+      "text": "7. Validate JWT"
+    },
+    {
+      "from": "validate-token",
+      "to": "check-permissions",
+      "category": "flow",
+      "text": "8. Token valid"
+    },
+    {
+      "from": "check-permissions",
+      "to": "roles-tables",
+      "category": "database-query",
+      "text": "Query RBAC"
+    },
+    {
+      "from": "roles-tables",
+      "to": "check-permissions",
+      "category": "database-result",
+      "text": "Return permissions"
+    },
+    {
+      "from": "check-permissions",
+      "to": "permission-result",
+      "category": "flow",
+      "text": "9. Evaluate"
+    },
+    {
+      "from": "permission-result",
+      "to": "client",
+      "category": "flow",
+      "text": "10. Allow/Deny"
+    },
+    {
+      "from": "client",
+      "to": "logout-request",
+      "category": "flow",
+      "text": "11. Logout"
+    },
+    {
+      "from": "logout-request",
+      "to": "security-coordinator",
+      "category": "mqtt",
+      "text": "MQTT Publish"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "revoke-token",
+      "category": "flow",
+      "text": "12. Revoke"
+    },
+    {
+      "from": "revoke-token",
+      "to": "logout-response",
+      "category": "flow",
+      "text": "13. Confirmed"
+    },
+    {
+      "from": "logout-response",
+      "to": "client",
+      "category": "mqtt",
+      "text": "14. Success"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-01-16",
+    "description": "Security and authentication flows for BIG SKIES Framework",
+    "authentication": {
+      "method": "JWT (JSON Web Tokens)",
+      "algorithm": "HMAC-SHA256",
+      "password_hashing": "bcrypt (cost 10)",
+      "token_expiration": "24 hours (configurable)",
+      "revocation": "In-memory revocation list for logout"
+    },
+    "authorization": {
+      "model": "RBAC (Role-Based Access Control)",
+      "components": {
+        "users": "Individual user accounts",
+        "groups": "Collections of users",
+        "roles": "Collections of permissions",
+        "permissions": "Resource + action + effect (allow/deny)"
+      },
+      "relationships": {
+        "user_to_roles": "Many-to-many",
+        "user_to_groups": "Many-to-many",
+        "role_to_permissions": "Many-to-many",
+        "group_to_permissions": "Many-to-many"
+      },
+      "evaluation": {
+        "policy": "Deny-first",
+        "description": "Explicit deny overrides any allow",
+        "precedence": "User permissions > Group permissions > Role permissions"
+      }
+    },
+    "flows": {
+      "login_flow": {
+        "steps": 5,
+        "description": "Client -> Login Request -> Authenticate -> Generate JWT -> Response",
+        "success_result": "Client receives JWT token",
+        "failure_result": "Authentication failed error"
+      },
+      "authorization_flow": {
+        "steps": 5,
+        "description": "Protected Request -> Validate Token -> Check Permissions -> Allow/Deny",
+        "success_result": "Request proceeds",
+        "failure_result": "403 Forbidden or 401 Unauthorized"
+      },
+      "logout_flow": {
+        "steps": 4,
+        "description": "Client -> Logout Request -> Revoke Token -> Response",
+        "result": "Token added to revocation list"
+      }
+    },
+    "security_features": {
+      "password_storage": "Never stored in plaintext, only bcrypt hashes",
+      "jwt_secret": "Configurable secret key for token signing",
+      "token_validation": "Signature, expiration, and revocation checked",
+      "permission_caching": "Permissions can be cached for performance",
+      "audit_trail": "All authentication events logged"
+    },
+    "mqtt_topics": {
+      "login": "bigskies/coordinator/security/auth/login",
+      "logout": "bigskies/coordinator/security/auth/logout",
+      "validate": "bigskies/coordinator/security/auth/validate",
+      "permission_check": "bigskies/coordinator/security/permission/check",
+      "responses": "bigskies/coordinator/security/response/auth/{action}/response"
+    },
+    "default_permissions": {
+      "admin_role": "All permissions",
+      "operator_role": ["telescope read/write/control", "plugin read/write"],
+      "observer_role": ["user read", "telescope read", "plugin read"],
+      "developer_role": ["plugin read/write/install/delete"]
+    },
+    "resource_types": [
+      "user - User account management",
+      "telescope - Telescope configurations and control",
+      "plugin - Plugin management",
+      "security - Security settings",
+      "certificate - TLS certificate management"
+    ],
+    "action_types": [
+      "read - View/query resources",
+      "write - Create/update resources",
+      "delete - Remove resources",
+      "control - Control telescope operations",
+      "install - Install plugins",
+      "configure - Modify system configuration"
+    ]
+  }
+}

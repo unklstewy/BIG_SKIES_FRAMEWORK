@@ -1,0 +1,158 @@
+{
+  "id": "f7e8d9c6-b5a4-3210-9876-543210fedcba",
+  "name": "ASCOM Alpaca Simulators",
+  "version": "1.0.0",
+  "description": "Complete suite of ASCOM Alpaca device simulators including telescope, camera, dome, focuser, filter wheel, and more. Provides realistic device behavior for testing and development.",
+  "author": "BIG SKIES Framework",
+  "license": "MIT",
+  "homepage": "https://github.com/DanielVanNoord/ASCOM.Alpaca.Simulators",
+  
+  "capabilities": {
+    "provides_devices": true,
+    "provides_ui": true,
+    "requires_database": false,
+    "requires_internet": false
+  },
+  
+  "mqtt": {
+    "topics_subscribe": [
+      "bigskies/plugin/ascom-simulators/control/#",
+      "bigskies/plugin/ascom-simulators/config/#"
+    ],
+    "topics_publish": [
+      "bigskies/plugin/ascom-simulators/health",
+      "bigskies/plugin/ascom-simulators/status",
+      "bigskies/plugin/ascom-simulators/discovery",
+      "bigskies/plugin/ascom-simulators/config/response",
+      "bigskies/plugin/ascom-simulators/config/event"
+    ]
+  },
+  
+  "docker": {
+    "image": "bigskies/ascom-alpaca-simulators:latest",
+    "ports": [
+      "32323:80"
+    ],
+    "environment": {
+      "MQTT_BROKER": "tcp://mqtt-broker:1883",
+      "LOG_LEVEL": "info",
+      "ASPNETCORE_URLS": "http://+:80"
+    },
+    "volumes": [],
+    "networks": [
+      "bigskies-network"
+    ],
+    "restart_policy": "unless-stopped"
+  },
+  
+  "devices": [
+    {
+      "type": "telescope",
+      "name": "ASCOM Telescope Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "camera",
+      "name": "ASCOM Camera Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "dome",
+      "name": "ASCOM Dome Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "focuser",
+      "name": "ASCOM Focuser Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "filterwheel",
+      "name": "ASCOM FilterWheel Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "rotator",
+      "name": "ASCOM Rotator Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "switch",
+      "name": "ASCOM Switch Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "safetymonitor",
+      "name": "ASCOM Safety Monitor Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "observingconditions",
+      "name": "ASCOM Observing Conditions Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    },
+    {
+      "type": "covercalibrator",
+      "name": "ASCOM Cover Calibrator Simulator",
+      "device_number": 0,
+      "alpaca_port": 32323
+    }
+  ],
+  
+  "ui_elements": [
+    {
+      "id": "ascom-simulators-dashboard",
+      "type": "panel",
+      "title": "ASCOM Simulators Dashboard",
+      "description": "Control and configure all ASCOM Alpaca simulators",
+      "icon": "telescope",
+      "url": "http://localhost:32323"
+    },
+    {
+      "id": "ascom-simulators-swagger",
+      "type": "tool",
+      "title": "ASCOM API Documentation",
+      "description": "Swagger/OpenAPI documentation for ASCOM Alpaca API",
+      "icon": "documentation",
+      "url": "http://localhost:32323/swagger"
+    }
+  ],
+  
+  "health_check": {
+    "topic": "bigskies/plugin/ascom-simulators/health",
+    "interval_seconds": 30,
+    "http_endpoint": "http://localhost/api/v1/management/apiversions"
+  },
+  
+  "discovery": {
+    "alpaca_discovery": true,
+    "discovery_port": 32227,
+    "server_url": "http://localhost:32323"
+  },
+  
+  "dependencies": {
+    "coordinators": ["message", "telescope"],
+    "min_framework_version": "1.0.0"
+  },
+  
+  "tags": [
+    "ascom",
+    "alpaca",
+    "simulator",
+    "telescope",
+    "camera",
+    "dome",
+    "focuser",
+    "astronomy",
+    "testing"
+  ]
+}

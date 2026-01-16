@@ -214,8 +214,25 @@ go test ./internal/coordinators ./internal/engines/ascom
 ```
 
 ### Integration Tests
-Integration tests with ASCOM Alpaca Simulator (planned):
+Comprehensive integration tests are located in `test/integration/telescope_coordinator_test.go`:
+
 ```bash
+make test-integration
+```
+
+Tests cover:
+- Health status monitoring
+- Configuration CRUD operations (create, read, update, delete, list)
+- Device discovery and connection management
+- Telescope control commands (slew, park, unpark, tracking, abort)
+- Status retrieval
+- Session management (start/end)
+- Multi-operation workflows
+- Rapid sequential requests
+
+All integration tests require running services:
+```bash
+make docker-up    # Start all services
 make test-integration
 ```
 

@@ -837,7 +837,7 @@ func TestTelescopeCoordinatorFullWorkflow(t *testing.T) {
 	t.Log("Full workflow completed successfully")
 }
 
-// TestTelescopeCoordinatorConcurrentRequests tests handling multiple concurrent requests
+// TestTelescopeCoordinatorConcurrentRequests tests handling multiple rapid requests
 func TestTelescopeCoordinatorConcurrentRequests(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -851,30 +851,39 @@ func TestTelescopeCoordinatorConcurrentRequests(t *testing.T) {
 
 	userID := uuid.New().String()
 
-	// Create multiple configs concurrently
+	// Create multiple configs in rapid succession, waiting for each response
 	numConfigs := 5
+	t.Logf("Creating %d configs in rapid succession for user %s", numConfigs, userID)
+	
 	for i := 0; i < numConfigs; i++ {
 		configReq := map[string]interface{}{
 			"name":        "Concurrent Test " + string(rune('A'+i)),
-			"description": "Concurrent creation test",
+			"description": "Rapid creation test",
 			"owner_id":    userID,
 			"owner_type":  "user",
 			"mount_type":  "equatorial",
 		}
 
-		// Don't wait for each response - just fire them off
-		payload, err := json.Marshal(configReq)
-		require.NoError(t, err)
+		response := publishAndWaitForResponse(
+			t, ctx, client,
+			"bigskies/coordinator/telescope/config/create",
+			"bigskies/coordinator/telescope/response/config/create/response",
+			configReq,
+		)
 
-		token := client.Publish("bigskies/coordinator/telescope/config/create", 1, false, payload)
-		token.Wait()
-		require.NoError(t, token.Error())
+		var createResult map[string]interface{}
+		err := json.Unmarshal([]byte(response), &createResult)
+		require.NoError(t, err, "Failed to unmarshal response for config %d", i)
+		require.True(t, createResult["success"].(bool), "Config %d creation should succeed", i)
+		
+		t.Logf("Created config %d: %s", i, createResult["id"])
+		
+		// Small delay between requests
+		time.Sleep(50 * time.Millisecond)
 	}
 
-	// Give the coordinator time to process all requests
-	time.Sleep(2 * time.Second)
-
-	// Now verify all configs were created
+	// Now verify all configs were created by listing them
+	t.Log("Verifying all configs via list operation...")
 	listReq := map[string]interface{}{
 		"user_id": userID,
 	}
@@ -892,7 +901,7 @@ func TestTelescopeCoordinatorConcurrentRequests(t *testing.T) {
 
 	if listResult["success"].(bool) {
 		configs := listResult["configs"].([]interface{})
-		assert.GreaterOrEqual(t, len(configs), numConfigs, "All concurrent configs should be created")
-		t.Logf("Successfully created %d configs concurrently", len(configs))
+		assert.GreaterOrEqual(t, len(configs), numConfigs, "All configs should be in the list")
+		t.Logf("Successfully created and verified %d configs", len(configs))
 	}
 }

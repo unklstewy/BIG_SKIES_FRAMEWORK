@@ -1,0 +1,266 @@
+{
+  "class": "GraphLinksModel",
+  "nodeDataArray": [
+    {
+      "key": "mqtt-broker",
+      "text": "MQTT Broker",
+      "category": "broker",
+      "description": "Eclipse Mosquitto - Central message bus for all coordinators"
+    },
+    {
+      "key": "message-coordinator",
+      "text": "Message Coordinator",
+      "category": "coordinator",
+      "subscribes": [
+        "bigskies/coordinator/+/health/status"
+      ],
+      "publishes": [
+        "bigskies/coordinator/message/health/status"
+      ]
+    },
+    {
+      "key": "security-coordinator",
+      "text": "Security Coordinator",
+      "category": "coordinator",
+      "subscribes": [
+        "bigskies/coordinator/security/auth/login",
+        "bigskies/coordinator/security/auth/logout",
+        "bigskies/coordinator/security/auth/validate",
+        "bigskies/coordinator/security/user/create",
+        "bigskies/coordinator/security/user/update",
+        "bigskies/coordinator/security/user/delete",
+        "bigskies/coordinator/security/role/assign",
+        "bigskies/coordinator/security/permission/check",
+        "bigskies/coordinator/security/cert/request",
+        "bigskies/coordinator/security/cert/renew"
+      ],
+      "publishes": [
+        "bigskies/coordinator/security/response/auth/login/response",
+        "bigskies/coordinator/security/response/auth/logout/response",
+        "bigskies/coordinator/security/response/auth/validate/response",
+        "bigskies/coordinator/security/response/user/create/response",
+        "bigskies/coordinator/security/response/role/assign/response",
+        "bigskies/coordinator/security/response/permission/check/response",
+        "bigskies/coordinator/security/response/cert/request/response",
+        "bigskies/coordinator/security/health/status"
+      ]
+    },
+    {
+      "key": "datastore-coordinator",
+      "text": "DataStore Coordinator",
+      "category": "coordinator",
+      "subscribes": [
+        "bigskies/coordinator/datastore/query",
+        "bigskies/coordinator/datastore/backup",
+        "bigskies/coordinator/datastore/restore"
+      ],
+      "publishes": [
+        "bigskies/coordinator/datastore/response/query/response",
+        "bigskies/coordinator/datastore/health/status"
+      ]
+    },
+    {
+      "key": "application-coordinator",
+      "text": "Application Coordinator",
+      "category": "coordinator",
+      "subscribes": [
+        "bigskies/coordinator/application/service/register",
+        "bigskies/coordinator/application/service/heartbeat",
+        "bigskies/coordinator/application/service/status"
+      ],
+      "publishes": [
+        "bigskies/coordinator/application/response/service/register/response",
+        "bigskies/coordinator/application/response/service/heartbeat/response",
+        "bigskies/coordinator/application/response/service/status/response",
+        "bigskies/coordinator/application/health/status"
+      ]
+    },
+    {
+      "key": "plugin-coordinator",
+      "text": "Plugin Coordinator",
+      "category": "coordinator",
+      "subscribes": [
+        "bigskies/coordinator/plugin/install",
+        "bigskies/coordinator/plugin/remove",
+        "bigskies/coordinator/plugin/verify",
+        "bigskies/coordinator/plugin/list",
+        "bigskies/coordinator/plugin/update"
+      ],
+      "publishes": [
+        "bigskies/coordinator/plugin/response/install/response",
+        "bigskies/coordinator/plugin/response/remove/response",
+        "bigskies/coordinator/plugin/response/verify/response",
+        "bigskies/coordinator/plugin/response/list/response",
+        "bigskies/coordinator/plugin/health/status"
+      ]
+    },
+    {
+      "key": "uielement-coordinator",
+      "text": "UI Element Coordinator",
+      "category": "coordinator",
+      "subscribes": [
+        "bigskies/coordinator/uielement/register",
+        "bigskies/coordinator/uielement/unregister",
+        "bigskies/coordinator/uielement/list",
+        "bigskies/coordinator/uielement/filter"
+      ],
+      "publishes": [
+        "bigskies/coordinator/uielement/response/register/response",
+        "bigskies/coordinator/uielement/response/unregister/response",
+        "bigskies/coordinator/uielement/response/list/response",
+        "bigskies/coordinator/uielement/health/status"
+      ]
+    },
+    {
+      "key": "telescope-coordinator",
+      "text": "Telescope Coordinator",
+      "category": "coordinator",
+      "subscribes": [
+        "bigskies/coordinator/telescope/config/create",
+        "bigskies/coordinator/telescope/config/update",
+        "bigskies/coordinator/telescope/config/delete",
+        "bigskies/coordinator/telescope/config/list",
+        "bigskies/coordinator/telescope/config/get",
+        "bigskies/coordinator/telescope/device/discover",
+        "bigskies/coordinator/telescope/device/connect",
+        "bigskies/coordinator/telescope/device/disconnect",
+        "bigskies/coordinator/telescope/control/slew",
+        "bigskies/coordinator/telescope/control/park",
+        "bigskies/coordinator/telescope/control/unpark",
+        "bigskies/coordinator/telescope/control/track",
+        "bigskies/coordinator/telescope/control/abort",
+        "bigskies/coordinator/telescope/status/get",
+        "bigskies/coordinator/telescope/session/start",
+        "bigskies/coordinator/telescope/session/end"
+      ],
+      "publishes": [
+        "bigskies/coordinator/telescope/response/config/create/response",
+        "bigskies/coordinator/telescope/response/config/list/response",
+        "bigskies/coordinator/telescope/response/device/discover/response",
+        "bigskies/coordinator/telescope/response/control/slew/response",
+        "bigskies/coordinator/telescope/response/session/start/response",
+        "bigskies/coordinator/telescope/health/status"
+      ]
+    },
+    {
+      "key": "client-app",
+      "text": "Client Application",
+      "category": "client",
+      "description": "Frontend applications (Flutter, Unity, Python GTK) or plugins"
+    }
+  ],
+  "linkDataArray": [
+    {
+      "from": "mqtt-broker",
+      "to": "message-coordinator",
+      "category": "subscribe",
+      "text": "Health monitoring"
+    },
+    {
+      "from": "message-coordinator",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Health status"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "security-coordinator",
+      "category": "subscribe",
+      "text": "Auth/User/Role/Cert"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Responses + Health"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "datastore-coordinator",
+      "category": "subscribe",
+      "text": "Query/Backup/Restore"
+    },
+    {
+      "from": "datastore-coordinator",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Responses + Health"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "application-coordinator",
+      "category": "subscribe",
+      "text": "Service mgmt"
+    },
+    {
+      "from": "application-coordinator",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Responses + Health"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "plugin-coordinator",
+      "category": "subscribe",
+      "text": "Plugin lifecycle"
+    },
+    {
+      "from": "plugin-coordinator",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Responses + Health"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "uielement-coordinator",
+      "category": "subscribe",
+      "text": "UI element mgmt"
+    },
+    {
+      "from": "uielement-coordinator",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Responses + Health"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "telescope-coordinator",
+      "category": "subscribe",
+      "text": "Telescope control"
+    },
+    {
+      "from": "telescope-coordinator",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Responses + Health"
+    },
+    {
+      "from": "client-app",
+      "to": "mqtt-broker",
+      "category": "publish",
+      "text": "Commands/Requests"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "client-app",
+      "category": "subscribe",
+      "text": "Responses"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-01-16",
+    "description": "MQTT message flow between BIG SKIES coordinators",
+    "topic_pattern": "bigskies/coordinator/{component}/{action}/{resource}",
+    "response_pattern": "bigskies/coordinator/{component}/response/{action}/{resource}/response",
+    "health_pattern": "bigskies/coordinator/{component}/health/status",
+    "message_format": "JSON",
+    "qos": "1 (at least once delivery)",
+    "notes": [
+      "All coordinators publish health status every 30 seconds",
+      "Message coordinator subscribes to all health topics using wildcard: bigskies/coordinator/+/health/status",
+      "Response topics follow consistent pattern for request-response communication",
+      "All topics use lowercase with forward slashes as separators"
+    ]
+  }
+}

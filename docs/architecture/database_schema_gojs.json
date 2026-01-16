@@ -1,0 +1,364 @@
+{
+  "class": "GraphLinksModel",
+  "nodeDataArray": [
+    {
+      "key": "users",
+      "text": "users",
+      "category": "table",
+      "coordinator": "security",
+      "fields": [
+        "id UUID PK",
+        "username VARCHAR(255) UNIQUE",
+        "email VARCHAR(255) UNIQUE",
+        "password_hash TEXT",
+        "enabled BOOLEAN",
+        "created_at TIMESTAMPTZ",
+        "updated_at TIMESTAMPTZ"
+      ],
+      "indexes": ["username", "email", "enabled"]
+    },
+    {
+      "key": "groups",
+      "text": "groups",
+      "category": "table",
+      "coordinator": "security",
+      "fields": [
+        "id UUID PK",
+        "name VARCHAR(255) UNIQUE",
+        "description TEXT",
+        "created_at TIMESTAMPTZ",
+        "updated_at TIMESTAMPTZ"
+      ],
+      "indexes": ["name"]
+    },
+    {
+      "key": "roles",
+      "text": "roles",
+      "category": "table",
+      "coordinator": "security",
+      "fields": [
+        "id UUID PK",
+        "name VARCHAR(255) UNIQUE",
+        "description TEXT",
+        "created_at TIMESTAMPTZ",
+        "updated_at TIMESTAMPTZ"
+      ],
+      "indexes": ["name"]
+    },
+    {
+      "key": "permissions",
+      "text": "permissions",
+      "category": "table",
+      "coordinator": "security",
+      "fields": [
+        "id UUID PK",
+        "resource VARCHAR(255)",
+        "action VARCHAR(255)",
+        "effect VARCHAR(50) CHECK(allow/deny)"
+      ],
+      "indexes": ["resource, action, effect UNIQUE"]
+    },
+    {
+      "key": "user_groups",
+      "text": "user_groups",
+      "category": "junction",
+      "coordinator": "security",
+      "fields": [
+        "user_id UUID FK",
+        "group_id UUID FK",
+        "created_at TIMESTAMPTZ",
+        "PK (user_id, group_id)"
+      ]
+    },
+    {
+      "key": "user_roles",
+      "text": "user_roles",
+      "category": "junction",
+      "coordinator": "security",
+      "fields": [
+        "user_id UUID FK",
+        "role_id UUID FK",
+        "created_at TIMESTAMPTZ",
+        "PK (user_id, role_id)"
+      ]
+    },
+    {
+      "key": "group_permissions",
+      "text": "group_permissions",
+      "category": "junction",
+      "coordinator": "security",
+      "fields": [
+        "group_id UUID FK",
+        "permission_id UUID FK",
+        "created_at TIMESTAMPTZ",
+        "PK (group_id, permission_id)"
+      ]
+    },
+    {
+      "key": "role_permissions",
+      "text": "role_permissions",
+      "category": "junction",
+      "coordinator": "security",
+      "fields": [
+        "role_id UUID FK",
+        "permission_id UUID FK",
+        "created_at TIMESTAMPTZ",
+        "PK (role_id, permission_id)"
+      ]
+    },
+    {
+      "key": "tls_certificates",
+      "text": "tls_certificates",
+      "category": "table",
+      "coordinator": "security",
+      "fields": [
+        "id UUID PK",
+        "domain VARCHAR(255) UNIQUE",
+        "certificate_pem TEXT",
+        "private_key_pem TEXT",
+        "expires_at TIMESTAMPTZ",
+        "issuer VARCHAR(100)",
+        "created_at TIMESTAMPTZ",
+        "updated_at TIMESTAMPTZ"
+      ],
+      "indexes": ["domain", "expires_at", "issuer"]
+    },
+    {
+      "key": "observatory_sites",
+      "text": "observatory_sites",
+      "category": "table",
+      "coordinator": "telescope",
+      "fields": [
+        "id UUID PK",
+        "name VARCHAR(255)",
+        "description TEXT",
+        "latitude DOUBLE PRECISION",
+        "longitude DOUBLE PRECISION",
+        "elevation DOUBLE PRECISION",
+        "timezone VARCHAR(100)",
+        "created_at TIMESTAMPTZ",
+        "updated_at TIMESTAMPTZ"
+      ],
+      "indexes": ["name"]
+    },
+    {
+      "key": "telescope_configurations",
+      "text": "telescope_configurations",
+      "category": "table",
+      "coordinator": "telescope",
+      "fields": [
+        "id UUID PK",
+        "name VARCHAR(255)",
+        "description TEXT",
+        "owner_id UUID FK → users",
+        "owner_type VARCHAR(50) CHECK(user/group)",
+        "site_id UUID FK → observatory_sites",
+        "mount_type VARCHAR(50) CHECK(altaz/equatorial/dobsonian)",
+        "enabled BOOLEAN",
+        "created_at TIMESTAMPTZ",
+        "updated_at TIMESTAMPTZ",
+        "UNIQUE (name, owner_id)"
+      ],
+      "indexes": ["owner_id, owner_type", "site_id", "enabled"]
+    },
+    {
+      "key": "telescope_devices",
+      "text": "telescope_devices",
+      "category": "table",
+      "coordinator": "telescope",
+      "fields": [
+        "id UUID PK",
+        "telescope_id UUID FK → telescope_configurations",
+        "device_role VARCHAR(50) CHECK(telescope/camera/...)",
+        "device_id VARCHAR(255)",
+        "device_type VARCHAR(50)",
+        "device_number INT",
+        "server_url VARCHAR(255)",
+        "device_name VARCHAR(255)",
+        "device_uuid VARCHAR(255)",
+        "enabled BOOLEAN",
+        "last_connected TIMESTAMPTZ",
+        "created_at TIMESTAMPTZ",
+        "updated_at TIMESTAMPTZ",
+        "UNIQUE (telescope_id, device_role)"
+      ],
+      "indexes": ["telescope_id", "device_role", "enabled", "device_id"]
+    },
+    {
+      "key": "telescope_permissions",
+      "text": "telescope_permissions",
+      "category": "table",
+      "coordinator": "telescope",
+      "fields": [
+        "id UUID PK",
+        "telescope_id UUID FK → telescope_configurations",
+        "principal_id UUID",
+        "principal_type VARCHAR(50) CHECK(user/group)",
+        "permission VARCHAR(50) CHECK(read/write/control)",
+        "granted_by UUID FK → users",
+        "granted_at TIMESTAMPTZ",
+        "expires_at TIMESTAMPTZ",
+        "UNIQUE (telescope_id, principal_id, principal_type, permission)"
+      ],
+      "indexes": ["telescope_id", "principal_id, principal_type", "permission", "expires_at"]
+    },
+    {
+      "key": "telescope_sessions",
+      "text": "telescope_sessions",
+      "category": "table",
+      "coordinator": "telescope",
+      "fields": [
+        "id UUID PK",
+        "telescope_id UUID FK → telescope_configurations",
+        "user_id UUID FK → users",
+        "started_at TIMESTAMPTZ",
+        "ended_at TIMESTAMPTZ",
+        "status VARCHAR(50) CHECK(active/completed/aborted/error)",
+        "session_type VARCHAR(50) CHECK(manual/automated/maintenance)",
+        "notes TEXT",
+        "CHECK (ended_at >= started_at)"
+      ],
+      "indexes": ["telescope_id", "user_id", "status", "started_at"]
+    }
+  ],
+  "linkDataArray": [
+    {
+      "from": "users",
+      "to": "user_groups",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "groups",
+      "to": "user_groups",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "users",
+      "to": "user_roles",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "roles",
+      "to": "user_roles",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "groups",
+      "to": "group_permissions",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "permissions",
+      "to": "group_permissions",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "roles",
+      "to": "role_permissions",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "permissions",
+      "to": "role_permissions",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "users",
+      "to": "telescope_configurations",
+      "category": "one-to-many",
+      "text": "owner_id"
+    },
+    {
+      "from": "observatory_sites",
+      "to": "telescope_configurations",
+      "category": "one-to-many",
+      "text": "site_id"
+    },
+    {
+      "from": "telescope_configurations",
+      "to": "telescope_devices",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "telescope_configurations",
+      "to": "telescope_permissions",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "users",
+      "to": "telescope_permissions",
+      "category": "one-to-many",
+      "text": "granted_by"
+    },
+    {
+      "from": "telescope_configurations",
+      "to": "telescope_sessions",
+      "category": "one-to-many",
+      "text": "1:N"
+    },
+    {
+      "from": "users",
+      "to": "telescope_sessions",
+      "category": "one-to-many",
+      "text": "user_id"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-01-16",
+    "description": "Complete database schema for BIG SKIES Framework",
+    "database": "PostgreSQL",
+    "coordinators": {
+      "security": {
+        "tables": 9,
+        "description": "Authentication, authorization, RBAC, and TLS certificate management"
+      },
+      "telescope": {
+        "tables": 5,
+        "description": "Multi-tenant telescope configurations, ASCOM devices, permissions, and sessions"
+      },
+      "other_coordinators": {
+        "tables": 0,
+        "description": "Message, Application, Plugin, UIElement, DataStore coordinators use in-memory state or minimal persistence"
+      }
+    },
+    "rbac_model": {
+      "description": "Many-to-many relationships between users, groups, roles, and permissions",
+      "users_to_groups": "Many-to-many via user_groups",
+      "users_to_roles": "Many-to-many via user_roles",
+      "groups_to_permissions": "Many-to-many via group_permissions",
+      "roles_to_permissions": "Many-to-many via role_permissions",
+      "evaluation": "Deny-first policy: explicit deny overrides allow"
+    },
+    "multi_tenancy": {
+      "description": "Telescope configurations support multi-tenant ownership",
+      "ownership": "telescope_configurations.owner_id + owner_type (user or group)",
+      "permissions": "Fine-grained access control via telescope_permissions table",
+      "isolation": "Each tenant can only access their own configurations unless explicitly granted permission"
+    },
+    "indexes": {
+      "purpose": "Optimize query performance for common access patterns",
+      "types": ["Primary keys (UUID)", "Unique constraints", "Foreign keys", "Lookup fields"]
+    },
+    "default_data": {
+      "admin_user": {
+        "username": "admin",
+        "password": "bigskies_admin_2024",
+        "note": "Change immediately in production!"
+      },
+      "roles": ["admin", "operator", "observer", "developer"],
+      "groups": ["administrators", "operators", "observers"],
+      "permissions": "Pre-configured for user, telescope, plugin, security, and certificate resources"
+    }
+  }
+}

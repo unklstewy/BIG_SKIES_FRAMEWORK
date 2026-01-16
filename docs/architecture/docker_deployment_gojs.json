@@ -1,0 +1,353 @@
+{
+  "class": "GraphLinksModel",
+  "nodeDataArray": [
+    {
+      "key": "mqtt-broker",
+      "text": "MQTT Broker",
+      "category": "infrastructure",
+      "image": "eclipse-mosquitto:2.0",
+      "container": "bigskies-mqtt",
+      "ports": ["1883:1883", "9001:9001"],
+      "volumes": ["mqtt-data", "mqtt-logs", "config"],
+      "healthcheck": "none",
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "postgres",
+      "text": "PostgreSQL",
+      "category": "infrastructure",
+      "image": "postgres:16-alpine",
+      "container": "bigskies-postgres",
+      "ports": ["5432:5432"],
+      "volumes": ["postgres-data", "security_schema.sql", "telescope_schema.sql"],
+      "env": ["POSTGRES_DB=bigskies", "POSTGRES_USER=bigskies", "POSTGRES_PASSWORD"],
+      "healthcheck": "pg_isready -U bigskies (10s interval)",
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "message-coordinator",
+      "text": "Message Coordinator",
+      "category": "coordinator",
+      "build": "Dockerfile.coordinator",
+      "container": "bigskies-message-coordinator",
+      "depends_on": ["mqtt-broker"],
+      "environment": ["LOG_LEVEL"],
+      "command": ["--broker-url=mqtt-broker", "--broker-port=1883"],
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "datastore-coordinator",
+      "text": "DataStore Coordinator",
+      "category": "coordinator",
+      "build": "Dockerfile.coordinator",
+      "container": "bigskies-datastore-coordinator",
+      "depends_on": ["postgres (healthy)", "mqtt-broker"],
+      "environment": ["LOG_LEVEL", "DATABASE_URL"],
+      "command": ["--database-url", "--max-connections=25", "--min-connections=5"],
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "application-coordinator",
+      "text": "Application Coordinator",
+      "category": "coordinator",
+      "build": "Dockerfile.coordinator",
+      "container": "bigskies-application-coordinator",
+      "depends_on": ["mqtt-broker"],
+      "environment": ["LOG_LEVEL"],
+      "command": ["--check-interval=30s", "--service-timeout=90s"],
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "plugin-coordinator",
+      "text": "Plugin Coordinator",
+      "category": "coordinator",
+      "build": "Dockerfile.coordinator",
+      "container": "bigskies-plugin-coordinator",
+      "depends_on": ["mqtt-broker"],
+      "environment": ["LOG_LEVEL"],
+      "volumes": ["plugin-data", "/var/run/docker.sock"],
+      "command": ["--plugin-dir=/var/lib/bigskies/plugins", "--scan-interval=5m"],
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "uielement-coordinator",
+      "text": "UI Element Coordinator",
+      "category": "coordinator",
+      "build": "Dockerfile.coordinator",
+      "container": "bigskies-uielement-coordinator",
+      "depends_on": ["mqtt-broker", "plugin-coordinator"],
+      "environment": ["LOG_LEVEL"],
+      "command": ["--scan-interval=10m"],
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "telescope-coordinator",
+      "text": "Telescope Coordinator",
+      "category": "coordinator",
+      "build": "Dockerfile.coordinator",
+      "container": "bigskies-telescope-coordinator",
+      "depends_on": ["postgres (healthy)", "mqtt-broker", "security-coordinator"],
+      "environment": ["LOG_LEVEL", "DATABASE_URL"],
+      "command": ["--broker-url", "--database-url", "--discovery-port=32227", "--health-interval=30s"],
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "security-coordinator",
+      "text": "Security Coordinator",
+      "category": "coordinator",
+      "build": "Dockerfile.coordinator",
+      "container": "bigskies-security-coordinator",
+      "depends_on": ["postgres (healthy)", "mqtt-broker"],
+      "environment": ["LOG_LEVEL", "DATABASE_URL", "JWT_SECRET"],
+      "volumes": ["cert-data"],
+      "command": ["--broker-host", "--database-url", "--jwt-secret", "--token-duration=24h"],
+      "restart": "unless-stopped"
+    },
+    {
+      "key": "bigskies-network",
+      "text": "bigskies-network",
+      "category": "network",
+      "driver": "bridge",
+      "description": "Docker bridge network connecting all containers"
+    },
+    {
+      "key": "volumes",
+      "text": "Persistent Volumes",
+      "category": "storage",
+      "volumes": [
+        "mqtt-data - MQTT broker data",
+        "mqtt-logs - MQTT broker logs",
+        "postgres-data - PostgreSQL database",
+        "plugin-data - Plugin storage",
+        "cert-data - TLS certificates"
+      ]
+    }
+  ],
+  "linkDataArray": [
+    {
+      "from": "mqtt-broker",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "postgres",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "message-coordinator",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "message-coordinator",
+      "to": "mqtt-broker",
+      "category": "depends-on",
+      "text": "Depends on"
+    },
+    {
+      "from": "datastore-coordinator",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "datastore-coordinator",
+      "to": "postgres",
+      "category": "depends-on",
+      "text": "DB connection"
+    },
+    {
+      "from": "datastore-coordinator",
+      "to": "mqtt-broker",
+      "category": "depends-on",
+      "text": "MQTT pub/sub"
+    },
+    {
+      "from": "application-coordinator",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "application-coordinator",
+      "to": "mqtt-broker",
+      "category": "depends-on",
+      "text": "Depends on"
+    },
+    {
+      "from": "plugin-coordinator",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "plugin-coordinator",
+      "to": "mqtt-broker",
+      "category": "depends-on",
+      "text": "Depends on"
+    },
+    {
+      "from": "uielement-coordinator",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "uielement-coordinator",
+      "to": "mqtt-broker",
+      "category": "depends-on",
+      "text": "Depends on"
+    },
+    {
+      "from": "uielement-coordinator",
+      "to": "plugin-coordinator",
+      "category": "depends-on",
+      "text": "Depends on"
+    },
+    {
+      "from": "telescope-coordinator",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "telescope-coordinator",
+      "to": "postgres",
+      "category": "depends-on",
+      "text": "DB connection"
+    },
+    {
+      "from": "telescope-coordinator",
+      "to": "mqtt-broker",
+      "category": "depends-on",
+      "text": "MQTT pub/sub"
+    },
+    {
+      "from": "telescope-coordinator",
+      "to": "security-coordinator",
+      "category": "depends-on",
+      "text": "Depends on"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "bigskies-network",
+      "category": "network-connection",
+      "text": "Connected"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "postgres",
+      "category": "depends-on",
+      "text": "DB connection"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "mqtt-broker",
+      "category": "depends-on",
+      "text": "MQTT pub/sub"
+    },
+    {
+      "from": "mqtt-broker",
+      "to": "volumes",
+      "category": "uses-volume",
+      "text": "mqtt-data, mqtt-logs"
+    },
+    {
+      "from": "postgres",
+      "to": "volumes",
+      "category": "uses-volume",
+      "text": "postgres-data"
+    },
+    {
+      "from": "plugin-coordinator",
+      "to": "volumes",
+      "category": "uses-volume",
+      "text": "plugin-data"
+    },
+    {
+      "from": "security-coordinator",
+      "to": "volumes",
+      "category": "uses-volume",
+      "text": "cert-data"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-01-16",
+    "description": "Docker deployment architecture for BIG SKIES Framework",
+    "orchestration": "Docker Compose",
+    "file": "deployments/docker-compose/docker-compose.yml",
+    "services": {
+      "total": 9,
+      "infrastructure": 2,
+      "coordinators": 7
+    },
+    "network": {
+      "name": "bigskies-network",
+      "driver": "bridge",
+      "isolation": "Container-to-container communication within the network"
+    },
+    "volumes": {
+      "persistent": 5,
+      "driver": "local",
+      "data": [
+        "mqtt-data: MQTT broker message persistence",
+        "mqtt-logs: MQTT broker operational logs",
+        "postgres-data: PostgreSQL database files",
+        "plugin-data: Plugin installations and data",
+        "cert-data: TLS/SSL certificates"
+      ]
+    },
+    "startup_order": [
+      "1. mqtt-broker (no dependencies)",
+      "2. postgres (no dependencies, with healthcheck)",
+      "3. message-coordinator (after mqtt-broker)",
+      "4. datastore-coordinator (after postgres healthy + mqtt-broker)",
+      "5. application-coordinator (after mqtt-broker)",
+      "6. plugin-coordinator (after mqtt-broker)",
+      "7. security-coordinator (after postgres healthy + mqtt-broker)",
+      "8. telescope-coordinator (after postgres healthy + mqtt-broker + security-coordinator)",
+      "9. uielement-coordinator (after mqtt-broker + plugin-coordinator)"
+    ],
+    "exposed_ports": {
+      "1883": "MQTT - TCP (external access)",
+      "9001": "MQTT - WebSocket (external access)",
+      "5432": "PostgreSQL (external access for development)"
+    },
+    "health_checks": {
+      "postgres": "pg_isready command every 10 seconds",
+      "coordinators": "Health status published to MQTT every 30 seconds",
+      "monitoring": "Message coordinator subscribes to all health topics"
+    },
+    "restart_policy": {
+      "all_services": "unless-stopped",
+      "description": "Containers restart automatically unless explicitly stopped"
+    },
+    "environment_variables": {
+      "required": [
+        "POSTGRES_PASSWORD - PostgreSQL password",
+        "JWT_SECRET - JWT token signing key"
+      ],
+      "optional": [
+        "LOG_LEVEL - Logging verbosity (default: info)"
+      ]
+    },
+    "build_context": {
+      "dockerfile": "deployments/docker/Dockerfile.coordinator",
+      "multi_stage": true,
+      "base_image": "alpine:latest",
+      "final_size": "~10-16MB per coordinator"
+    },
+    "commands": {
+      "start": "docker-compose up -d",
+      "stop": "docker-compose down",
+      "logs": "docker-compose logs -f [service]",
+      "rebuild": "docker-compose build && docker-compose up -d",
+      "status": "docker-compose ps"
+    }
+  }
+}

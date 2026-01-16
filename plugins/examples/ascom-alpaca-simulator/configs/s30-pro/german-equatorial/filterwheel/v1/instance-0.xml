@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfSettingsPair xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SettingsPair>
+    <Key>UniqueID</Key>
+    <Value>s30p-fw001-2222-3333-4444-555555555555</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>RegVer</Key>
+    <Value>1</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Position</Key>
+    <Value>0</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Slots</Key>
+    <Value>3</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>FilterChangeTimeInterval</Key>
+    <Value>1000</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>FilterNames 0</Key>
+    <Value>UV/IR Cut</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>FocusOffsets 0</Key>
+    <Value>0</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Filter 0 Color</Key>
+    <Value>White</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>FilterNames 1</Key>
+    <Value>Duo-Band (Ha/OIII)</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>FocusOffsets 1</Key>
+    <Value>0</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Filter 1 Color</Key>
+    <Value>DarkRed</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>FilterNames 2</Key>
+    <Value>Dark Field</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>FocusOffsets 2</Key>
+    <Value>0</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Filter 2 Color</Key>
+    <Value>Black</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>ImplementsNames</Key>
+    <Value>True</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>ImplementsOffsets</Key>
+    <Value>False</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>PreemptMoves</Key>
+    <Value>False</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>InterfaceVersion</Key>
+    <Value>3</Value>
+  </SettingsPair>
+</ArrayOfSettingsPair>

@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfSettingsPair xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SettingsPair>
+    <Key>UniqueID</Key>
+    <Value>s50-sw001-3333-4444-5555-666666666666</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>NumSwitches</Key>
+    <Value>1</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Name Switch0</Key>
+    <Value>Dew Heater</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Description Switch0</Key>
+    <Value>Internal Anti-Dew Heater</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Minimum Switch0</Key>
+    <Value>0</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Maximum Switch0</Key>
+    <Value>1</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>StepSize Switch0</Key>
+    <Value>1</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>CanWrite Switch0</Key>
+    <Value>True</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Value Switch0</Key>
+    <Value>0</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>CanAsync Switch0</Key>
+    <Value>False</Value>
+  </SettingsPair>
+  <SettingsPair>
+    <Key>Duration Switch0</Key>
+    <Value>0</Value>
+  </SettingsPair>
+</ArrayOfSettingsPair>
