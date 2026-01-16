@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,12 +32,14 @@ import (
 // - Integrates with security-coordinator for authentication/authorization
 type ASCOMCoordinator struct {
 	*BaseCoordinator
-	ascomEngine    *ascom.Engine           // ASCOM protocol engine
-	db             *pgxpool.Pool           // Database connection
-	config         *ASCOMConfig            // Coordinator configuration
-	httpServer     *http.Server            // HTTP server for ASCOM API
-	discoveryService *ascomserver.DiscoveryService // UDP discovery service
-	deviceRegistry map[string]*ASCOMDevice // Registered ASCOM devices
+	ascomEngine      *ascom.Engine                     // ASCOM protocol engine
+	bridge           *ascom.Bridge                     // MQTT bridge for device communication
+	db               *pgxpool.Pool                     // Database connection
+	config           *ASCOMConfig                      // Coordinator configuration
+	httpServer       *http.Server                      // HTTP server for ASCOM API
+	discoveryService *ascomserver.DiscoveryService     // UDP discovery service
+	deviceRegistry   map[string]*ASCOMDevice           // Registered ASCOM devices
+	serverTxnCounter atomic.Uint32                     // Server transaction ID counter
 }
 
 // ASCOMConfig holds configuration for the ASCOM coordinator.
@@ -143,16 +147,33 @@ func NewASCOMCoordinator(config *ASCOMConfig, logger *zap.Logger) (*ASCOMCoordin
 	// Initialize ASCOM engine
 	ascomEngine := ascom.NewEngine(logger, config.HealthCheckInterval)
 
+	// Initialize MQTT bridge
+	bridge, err := ascom.NewBridge(&ascom.BridgeConfig{
+		MQTTClient:      mqttClient,
+		ResponseTimeout: 30 * time.Second,
+		Logger:          logger,
+	})
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create MQTT bridge: %w", err)
+	}
+
 	coord := &ASCOMCoordinator{
-		BaseCoordinator: baseCoord,
-		ascomEngine:     ascomEngine,
-		db:              db,
-		config:          config,
-		deviceRegistry:  make(map[string]*ASCOMDevice),
+		BaseCoordinator:  baseCoord,
+		ascomEngine:      ascomEngine,
+		bridge:           bridge,
+		db:               db,
+		config:           config,
+		deviceRegistry:   make(map[string]*ASCOMDevice),
 	}
 
 	// Register health checks
 	coord.RegisterHealthCheck(ascomEngine)
+
+	// Register bridge shutdown
+	coord.RegisterShutdownFunc(func(ctx context.Context) error {
+		return bridge.Stop()
+	})
 
 	// Register shutdown functions
 	coord.RegisterShutdownFunc(func(ctx context.Context) error {
@@ -202,6 +223,11 @@ func (c *ASCOMCoordinator) Start(ctx context.Context) error {
 
 	// Start ASCOM engine
 	c.ascomEngine.Start(ctx)
+
+	// Start MQTT bridge
+	if err := c.bridge.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start MQTT bridge: %w", err)
+	}
 
 	// Subscribe to ASCOM coordinator topics
 	topics := []string{
@@ -296,8 +322,8 @@ func (c *ASCOMCoordinator) setupRouter() *gin.Engine {
 		management.GET("/v1/configureddevices", c.handleConfiguredDevices)
 	}
 
-	// Device API endpoints will be registered dynamically based on loaded devices
-	// This happens in registerDeviceRoutes() called from loadDevices()
+	// Device API endpoints - register routes for each device type
+	c.registerDeviceRoutes(router)
 
 	return router
 }
@@ -524,4 +550,296 @@ func extractPort(address string) int {
 	var port int
 	fmt.Sscanf(address, "%*[^:]:%d", &port)
 	return port
+}
+
+// registerDeviceRoutes registers HTTP routes for all configured devices.
+func (c *ASCOMCoordinator) registerDeviceRoutes(router *gin.Engine) {
+	for _, device := range c.deviceRegistry {
+		// Register routes for each device: /api/v1/{device_type}/{device_number}/*
+		basePath := fmt.Sprintf("/api/v1/%s/%d", device.DeviceType, device.DeviceNumber)
+		deviceGroup := router.Group(basePath)
+
+		// Common properties (all device types)
+		c.registerCommonRoutes(deviceGroup, device)
+
+		// Device-specific routes
+		switch device.DeviceType {
+		case "telescope":
+			c.registerTelescopeRoutes(deviceGroup, device)
+		case "camera":
+			c.registerCameraRoutes(deviceGroup, device)
+		// Add other device types as needed
+		}
+
+		c.GetLogger().Info("Registered device routes",
+			zap.String("device_type", device.DeviceType),
+			zap.Int("device_number", device.DeviceNumber),
+			zap.String("path", basePath))
+	}
+}
+
+// registerCommonRoutes registers routes common to all ASCOM devices.
+func (c *ASCOMCoordinator) registerCommonRoutes(group *gin.RouterGroup, device *ASCOMDevice) {
+	group.GET("/connected", func(ctx *gin.Context) {
+		c.handleDeviceGet(ctx, device, "connected")
+	})
+	group.PUT("/connected", func(ctx *gin.Context) {
+		c.handleDevicePut(ctx, device, "connected")
+	})
+
+	group.GET("/description", func(ctx *gin.Context) {
+		c.sendASCOMResponse(ctx, device.Description, nil)
+	})
+
+	group.GET("/driverinfo", func(ctx *gin.Context) {
+		c.sendASCOMResponse(ctx, "BigSkies ASCOM Driver", nil)
+	})
+
+	group.GET("/driverversion", func(ctx *gin.Context) {
+		c.sendASCOMResponse(ctx, "1.0.0", nil)
+	})
+
+	group.GET("/interfaceversion", func(ctx *gin.Context) {
+		// Return interface version based on device type
+		version := c.getInterfaceVersion(device.DeviceType)
+		c.sendASCOMResponse(ctx, version, nil)
+	})
+
+	group.GET("/name", func(ctx *gin.Context) {
+		c.sendASCOMResponse(ctx, device.Name, nil)
+	})
+
+	group.GET("/supportedactions", func(ctx *gin.Context) {
+		c.sendASCOMResponse(ctx, []string{}, nil)
+	})
+
+	group.PUT("/action", func(ctx *gin.Context) {
+		c.handleDevicePut(ctx, device, "action")
+	})
+
+	group.PUT("/commandblind", func(ctx *gin.Context) {
+		c.handleDevicePut(ctx, device, "commandblind")
+	})
+
+	group.PUT("/commandbool", func(ctx *gin.Context) {
+		c.handleDevicePut(ctx, device, "commandbool")
+	})
+
+	group.PUT("/commandstring", func(ctx *gin.Context) {
+		c.handleDevicePut(ctx, device, "commandstring")
+	})
+}
+
+// registerTelescopeRoutes registers telescope-specific routes.
+func (c *ASCOMCoordinator) registerTelescopeRoutes(group *gin.RouterGroup, device *ASCOMDevice) {
+	// Telescope properties and methods
+	telescopeMethods := []struct {
+		path   string
+		method string
+		get    bool
+		put    bool
+	}{
+		{"alignmentmode", "alignmentmode", true, false},
+		{"altitude", "altitude", true, false},
+		{"azimuth", "azimuth", true, false},
+		{"declination", "declination", true, false},
+		{"rightascension", "rightascension", true, false},
+		{"tracking", "tracking", true, true},
+		{"slewing", "slewing", true, false},
+		{"atpark", "atpark", true, false},
+		{"athome", "athome", true, false},
+		{"sideofpier", "sideofpier", true, true},
+		{"siderealtime", "siderealtime", true, false},
+		{"sitelatitude", "sitelatitude", true, true},
+		{"sitelongitude", "sitelongitude", true, true},
+		{"siteelevation", "siteelevation", true, true},
+		// Add more as needed - this is a subset for demonstration
+	}
+
+	for _, tm := range telescopeMethods {
+		path := "/" + tm.path
+		method := tm.method
+
+		if tm.get {
+			group.GET(path, func(ctx *gin.Context) {
+				c.handleDeviceGet(ctx, device, method)
+			})
+		}
+		if tm.put {
+			group.PUT(path, func(ctx *gin.Context) {
+				c.handleDevicePut(ctx, device, method)
+			})
+		}
+	}
+
+	// Telescope commands (PUT only)
+	telescopeCommands := []string{
+		"abortslew", "park", "unpark", "findhome",
+		"slewtocoordinates", "slewtocoordinatesasync",
+		"slewtotarget", "slewtotargetasync",
+		"synctocoordinates", "synctotarget",
+	}
+
+	for _, cmd := range telescopeCommands {
+		command := cmd
+		group.PUT("/"+command, func(ctx *gin.Context) {
+			c.handleDevicePut(ctx, device, command)
+		})
+	}
+}
+
+// registerCameraRoutes registers camera-specific routes (placeholder).
+func (c *ASCOMCoordinator) registerCameraRoutes(group *gin.RouterGroup, device *ASCOMDevice) {
+	// TODO: Implement camera routes
+	c.GetLogger().Debug("Camera routes not yet implemented")
+}
+
+// handleDeviceGet handles GET requests for device properties.
+func (c *ASCOMCoordinator) handleDeviceGet(ctx *gin.Context, device *ASCOMDevice, method string) {
+	// Build parameters from query string
+	params := make(map[string]string)
+	for key, values := range ctx.Request.URL.Query() {
+		if len(values) > 0 {
+			params[key] = values[0]
+		}
+	}
+
+	// Execute via bridge
+	value, err := c.bridge.Execute(
+		ctx.Request.Context(),
+		device.DeviceType,
+		device.DeviceNumber,
+		method,
+		"GET",
+		params,
+	)
+
+	c.sendASCOMResponse(ctx, value, err)
+}
+
+// handleDevicePut handles PUT requests for device properties and commands.
+func (c *ASCOMCoordinator) handleDevicePut(ctx *gin.Context, device *ASCOMDevice, method string) {
+	// Build parameters from form data and query string
+	params := make(map[string]string)
+
+	// Query parameters
+	for key, values := range ctx.Request.URL.Query() {
+		if len(values) > 0 {
+			params[key] = values[0]
+		}
+	}
+
+	// Form parameters (for PUT requests)
+	if err := ctx.Request.ParseForm(); err == nil {
+		for key, values := range ctx.Request.PostForm {
+			if len(values) > 0 {
+				params[key] = values[0]
+			}
+		}
+	}
+
+	// Execute via bridge
+	value, err := c.bridge.Execute(
+		ctx.Request.Context(),
+		device.DeviceType,
+		device.DeviceNumber,
+		method,
+		"PUT",
+		params,
+	)
+
+	c.sendASCOMResponse(ctx, value, err)
+}
+
+// sendASCOMResponse sends a standard ASCOM response.
+func (c *ASCOMCoordinator) sendASCOMResponse(ctx *gin.Context, value interface{}, err error) {
+	// Extract transaction IDs
+	clientTxnID := c.extractClientTransactionID(ctx)
+	serverTxnID := c.serverTxnCounter.Add(1)
+
+	if err != nil {
+		// Map error to ASCOM error code
+		errorNumber, errorMessage := c.mapErrorToASCOM(err)
+		ctx.JSON(http.StatusOK, gin.H{
+			"Value":                "",
+			"ClientTransactionID":  clientTxnID,
+			"ServerTransactionID":  serverTxnID,
+			"ErrorNumber":          errorNumber,
+			"ErrorMessage":         errorMessage,
+		})
+		return
+	}
+
+	// Success response
+	ctx.JSON(http.StatusOK, gin.H{
+		"Value":                value,
+		"ClientTransactionID":  clientTxnID,
+		"ServerTransactionID":  serverTxnID,
+		"ErrorNumber":          0,
+		"ErrorMessage":         "",
+	})
+}
+
+// extractClientTransactionID extracts the client transaction ID from the request.
+func (c *ASCOMCoordinator) extractClientTransactionID(ctx *gin.Context) uint32 {
+	clientTxnStr := ctx.Query("ClientTransactionID")
+	if clientTxnStr == "" {
+		clientTxnStr = ctx.PostForm("ClientTransactionID")
+	}
+
+	if clientTxnStr == "" {
+		return 0
+	}
+
+	clientTxn, err := strconv.ParseUint(clientTxnStr, 10, 32)
+	if err != nil {
+		return 0
+	}
+
+	return uint32(clientTxn)
+}
+
+// mapErrorToASCOM maps Go errors to ASCOM error codes.
+func (c *ASCOMCoordinator) mapErrorToASCOM(err error) (int, string) {
+	if err == nil {
+		return 0, ""
+	}
+
+	errStr := err.Error()
+
+	// Check for ASCOM error codes in the error message
+	// Format: "ASCOM error XXXX: message"
+	var ascomCode int
+	if n, _ := fmt.Sscanf(errStr, "ASCOM error %d:", &ascomCode); n == 1 {
+		return ascomCode, errStr
+	}
+
+	// Check for timeout
+	if errStr == "request timed out" || errStr == "context deadline exceeded" {
+		return 0x0408, "Operation timed out"
+	}
+
+	// Default to unspecified error
+	return 0x0500, errStr
+}
+
+// getInterfaceVersion returns the ASCOM interface version for a device type.
+func (c *ASCOMCoordinator) getInterfaceVersion(deviceType string) int {
+	versions := map[string]int{
+		"telescope":           3,
+		"camera":              3,
+		"dome":                2,
+		"focuser":             3,
+		"filterwheel":         2,
+		"rotator":             2,
+		"switch":              2,
+		"safetymonitor":       1,
+		"observingconditions": 1,
+		"covercalibrator":     1,
+	}
+
+	if version, exists := versions[deviceType]; exists {
+		return version
+	}
+	return 1
 }
