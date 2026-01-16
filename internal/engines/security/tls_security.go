@@ -61,10 +61,10 @@ func NewTLSSecurityEngine(db *pgxpool.Pool, config *TLSConfig, logger *zap.Logge
 	// Initialize ACME client if config provided
 	if config != nil && config.ACMEDirectoryURL != "" {
 		engine.acmeManager = &autocert.Manager{
-			Prompt:      autocert.AcceptTOS,
-			Email:       config.Email,
-			Cache:       autocert.DirCache(config.CacheDir),
-			HostPolicy:  autocert.HostWhitelist(config.Domains...),
+			Prompt:     autocert.AcceptTOS,
+			Email:      config.Email,
+			Cache:      autocert.DirCache(config.CacheDir),
+			HostPolicy: autocert.HostWhitelist(config.Domains...),
 		}
 
 		engine.acmeClient = &acme.Client{
@@ -242,7 +242,7 @@ func (e *TLSSecurityEngine) RequestLetsEncryptCertificate(ctx context.Context, d
 
 	// Encode certificate to PEM
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Certificate[0]})
-	
+
 	// Marshal private key (ECDSA or RSA)
 	var keyPEM []byte
 	if privKey, ok := cert.PrivateKey.(*ecdsa.PrivateKey); ok {

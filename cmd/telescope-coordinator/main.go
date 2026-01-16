@@ -54,11 +54,11 @@ func main() {
 	config.Name = "telescope-coordinator"
 	config.LogLevel = *logLevel
 	config.MQTTConfig = &mqtt.Config{
-		BrokerURL:      *brokerURL,
-		ClientID:       "telescope-coordinator",
-		ConnectTimeout: 5 * time.Second,
-		KeepAlive:      60 * time.Second,
-		AutoReconnect:  true,
+		BrokerURL:            *brokerURL,
+		ClientID:             "telescope-coordinator",
+		ConnectTimeout:       5 * time.Second,
+		KeepAlive:            60 * time.Second,
+		AutoReconnect:        true,
 		MaxReconnectInterval: 60 * time.Second,
 	}
 
@@ -117,11 +117,11 @@ func validateConfig(config *coordinators.TelescopeConfig) error {
 	}
 	if config.MQTTConfig == nil {
 		config.MQTTConfig = &mqtt.Config{
-			BrokerURL:      "tcp://localhost:1883",
-			ClientID:       "telescope-coordinator",
-			ConnectTimeout: 5 * time.Second,
-			KeepAlive:      60 * time.Second,
-			AutoReconnect:  true,
+			BrokerURL:            "tcp://localhost:1883",
+			ClientID:             "telescope-coordinator",
+			ConnectTimeout:       5 * time.Second,
+			KeepAlive:            60 * time.Second,
+			AutoReconnect:        true,
 			MaxReconnectInterval: 60 * time.Second,
 		}
 	}

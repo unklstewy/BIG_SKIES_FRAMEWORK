@@ -25,7 +25,7 @@ func NewEngine(logger *zap.Logger, interval time.Duration) *Engine {
 		logger = zap.NewNop()
 	}
 	if interval == 0 {
-		interval = 30 * time.Second
+		interval = 1 * time.Second
 	}
 
 	return &Engine{

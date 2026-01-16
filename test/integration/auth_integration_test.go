@@ -58,7 +58,7 @@ func TestAuthenticationFlow(t *testing.T) {
 
 		// Store token for subsequent tests
 		testToken := authResp.Token
-		
+
 		// Step 2: Validate token (should succeed)
 		t.Run("ValidateActiveToken", func(t *testing.T) {
 			validateReq := models.TokenValidationRequest{
@@ -278,7 +278,7 @@ func TestMultipleLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEqual(t, authResp1.Token, authResp2.Token, "Each login should generate a unique token")
-	
+
 	// Both tokens should be valid
 	for i, token := range []string{authResp1.Token, authResp2.Token} {
 		validateReq := models.TokenValidationRequest{Token: token}

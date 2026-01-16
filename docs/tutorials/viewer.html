@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Skies Tutorial Viewer</title>
+    
+    <!-- Include marked.js for markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Include highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    
+    <style>
+        /* ========================================
+           GLOBAL RESET AND BASE STYLES
+           ======================================== */
+        
+        /* Reset browser defaults for consistency */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* Root CSS variables for easy theming */
+        :root {
+            /* Color palette */
+            --primary-color: #2a5298;        /* Main blue */
+            --primary-dark: #1e3c72;         /* Darker blue for hover states */
+            --secondary-color: #28a745;      /* Success green */
+            --danger-color: #dc3545;         /* Error/danger red */
+            --warning-color: #ffc107;        /* Warning yellow */
+            --bg-color: #f5f7fa;            /* Light gray background */
+            --sidebar-bg: #2c3e50;          /* Dark sidebar background */
+            --content-bg: #ffffff;          /* White content background */
+            --text-primary: #333333;        /* Main text color */
+            --text-secondary: #666666;      /* Secondary text color */
+            --text-light: #ffffff;          /* Light text for dark backgrounds */
+            --border-color: #e1e4e8;        /* Light border color */
+            --code-bg: #f6f8fa;             /* Code background */
+            --highlight-bg: #fff3cd;        /* Comment highlight background */
+            
+            /* Spacing */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            
+            /* Typography */
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            --font-mono: 'Courier New', Courier, monospace;
+            
+            /* Transitions */
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.3s ease;
+        }
+        
+        /* Body styling - sets overall page appearance */
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            /* Prevent text selection on UI elements but allow in content */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* ========================================
+           LAYOUT STRUCTURE
+           Three-column layout: sidebar, content, checklist
+           ======================================== */
+        
+        /* Main container - flexbox for three-column layout */
+        .app-container {
+            display: flex;
+            height: 100vh;          /* Full viewport height */
+            overflow: hidden;       /* Prevent body scrolling */
+        }
+        
+        /* Left sidebar - navigation and lesson selection */
+        .sidebar {
+            width: 280px;           /* Fixed width */
+            background: var(--sidebar-bg);
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid rgba(0, 0, 0, 0.2);
+            /* Shadow for depth */
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Main content area - scrollable tutorial content */
+        .content {
+            flex: 1;                /* Take remaining space */
+            overflow-y: auto;       /* Vertical scrolling */
+            padding: var(--spacing-xl);
+            background: var(--content-bg);
+        }
+        
+        /* Right sidebar - progress checklist */
+        .checklist-panel {
+            width: 300px;           /* Fixed width */
+            background: var(--content-bg);
+            border-left: 1px solid var(--border-color);
+            overflow-y: auto;
+            padding: var(--spacing-lg);
+            /* Shadow for depth */
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* ========================================
+           SIDEBAR COMPONENTS
+           Header, file selector, lesson navigation
+           ======================================== */
+        
+        /* Sidebar header with branding */
+        .sidebar-header {
+            padding: var(--spacing-lg);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: var(--spacing-sm);
+            /* Gradient text effect */
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .sidebar-header p {
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* File selector section */
+        .file-selector {
+            padding: var(--spacing-lg);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .file-selector label {
+            display: block;
+            margin-bottom: var(--spacing-sm);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Dropdown for selecting markdown files */
+        .file-selector select {
+            width: 100%;
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: var(--text-light);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .file-selector select:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .file-selector select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.3);
+        }
+        
+        /* Option styling */
+        .file-selector option {
+            background: var(--sidebar-bg);
+            color: var(--text-light);
+        }
+        
+        /* Navigation menu - list of lessons */
+        .nav-menu {
+            flex: 1;                /* Take remaining space */
+            overflow-y: auto;       /* Scrollable if many lessons */
+            padding: var(--spacing-md);
+        }
+        
+        /* Individual lesson item in navigation */
+        .lesson-item {
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-sm);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border-left: 3px solid transparent;
+        }
+        
+        /* Hover state for lesson items */
+        .lesson-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(4px);     /* Slight slide on hover */
+        }
+        
+        /* Active/selected lesson state */
+        .lesson-item.active {
+            background: rgba(42, 82, 152, 0.3);
+            border-left-color: var(--primary-color);
+        }
+        
+        /* Lesson number badge */
+        .lesson-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: var(--primary-color);
+            border-radius: 50%;              /* Circle */
+            text-align: center;
+            line-height: 28px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            margin-right: var(--spacing-sm);
+        }
+        
+        /* Lesson title */
+        .lesson-title {
+            font-size: 0.938rem;
+            font-weight: 500;
+        }
+        
+        /* Completion checkmark */
+        .lesson-item.completed .lesson-number {
+            background: var(--secondary-color);
+        }
+        
+        .lesson-item.completed .lesson-number::after {
+            content: '✓';                    /* Checkmark character */
+        }
+        
+        /* ========================================
+           CONTENT AREA COMPONENTS
+           Tutorial content, code blocks, etc.
+           ======================================== */
+        
+        /* Loading state indicator */
+        .loading {
+            text-align: center;
+            padding: var(--spacing-xl);
+            color: var(--text-secondary);
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: ellipsis 1.5s infinite;
+        }
+        
+        /* Animated ellipsis for loading */
+        @keyframes ellipsis {
+            0% { content: '.'; }
+            33% { content: '..'; }
+            66% { content: '...'; }
+        }
+        
+        /* Error message styling */
+        .error {
+            padding: var(--spacing-lg);
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            color: #856404;
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        /* ========================================
+           MARKDOWN CONTENT STYLING
+           Headers, paragraphs, lists, etc.
+           ======================================== */
+        
+        /* Lesson content container */
+        .lesson-content {
+            max-width: 900px;                /* Limit line length for readability */
+            margin: 0 auto;
+        }
+        
+        /* Headers */
+        .lesson-content h1 {
+            font-size: 2.5rem;
+            margin-bottom: var(--spacing-lg);
+            color: var(--primary-dark);
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: var(--spacing-md);
+        }
+        
+        .lesson-content h2 {
+            font-size: 2rem;
+            margin-top: var(--spacing-xl);
+            margin-bottom: var(--spacing-lg);
+            color: var(--primary-dark);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: var(--spacing-sm);
+        }
+        
+        .lesson-content h3 {
+            font-size: 1.5rem;
+            margin-top: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            color: var(--primary-color);
+        }
+        
+        .lesson-content h4 {
+            font-size: 1.25rem;
+            margin-top: var(--spacing-md);
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-primary);
+        }
+        
+        /* Paragraphs and text */
+        .lesson-content p {
+            margin-bottom: var(--spacing-md);
+            line-height: 1.8;
+        }
+        
+        /* Strong emphasis */
+        .lesson-content strong {
+            color: var(--primary-dark);
+            font-weight: 600;
+        }
+        
+        /* Links */
+        .lesson-content a {
+            color: var(--primary-color);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color var(--transition-fast);
+        }
+        
+        .lesson-content a:hover {
+            border-bottom-color: var(--primary-color);
+        }
+        
+        /* Lists */
+        .lesson-content ul,
+        .lesson-content ol {
+            margin-bottom: var(--spacing-md);
+            padding-left: var(--spacing-xl);
+        }
+        
+        .lesson-content li {
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        /* Nested lists */
+        .lesson-content li > ul,
+        .lesson-content li > ol {
+            margin-top: var(--spacing-sm);
+            margin-bottom: 0;
+        }
+        
+        /* Blockquotes */
+        .lesson-content blockquote {
+            margin: var(--spacing-lg) 0;
+            padding: var(--spacing-md) var(--spacing-lg);
+            background: var(--code-bg);
+            border-left: 4px solid var(--primary-color);
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* ========================================
+           CODE BLOCK STYLING
+           Pre-formatted text and code with highlighting
+           ======================================== */
+        
+        /* Inline code */
+        .lesson-content code {
+            background: var(--code-bg);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 0.875em;
+            color: #e83e8c;
+        }
+        
+        /* Code blocks */
+        .lesson-content pre {
+            background: #1e1e1e;
+            border-radius: 6px;
+            padding: var(--spacing-lg);
+            margin: var(--spacing-lg) 0;
+            overflow-x: auto;
+            /* Shadow for depth */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        
+        .lesson-content pre code {
+            background: none;
+            padding: 0;
+            color: #d4d4d4;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+        
+        /* Code block with language label */
+        .code-block {
+            position: relative;
+            margin: var(--spacing-lg) 0;
+        }
+        
+        /* Language label in top-right corner */
+        .code-language {
+            position: absolute;
+            top: var(--spacing-sm);
+            right: var(--spacing-sm);
+            background: rgba(255, 255, 255, 0.1);
+            padding: var(--spacing-xs) var(--spacing-md);
+            border-radius: 3px;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Copy button for code blocks */
+        .copy-button {
+            position: absolute;
+            top: var(--spacing-sm);
+            right: var(--spacing-xl);
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: var(--spacing-xs) var(--spacing-md);
+            border-radius: 3px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+        
+        .code-block:hover .copy-button {
+            opacity: 1;
+        }
+        
+        .copy-button:hover {
+            background: var(--primary-dark);
+        }
+        
+        /* Comment highlighting in code blocks */
+        .comment-highlight {
+            background: rgba(255, 243, 205, 0.2);
+            border-left: 3px solid var(--warning-color);
+            display: block;
+            padding-left: var(--spacing-sm);
+            margin-left: calc(var(--spacing-sm) * -1);
+        }
+        
+        /* ========================================
+           OS-SPECIFIC TABS
+           Platform-specific instructions
+           ======================================== */
+        
+        /* Tab container */
+        .os-tabs {
+            margin: var(--spacing-lg) 0;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--content-bg);
+        }
+        
+        /* Tab buttons row */
+        .os-tab-buttons {
+            display: flex;
+            background: var(--bg-color);
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        /* Individual tab button */
+        .os-tab-button {
+            flex: 1;
+            padding: var(--spacing-md) var(--spacing-lg);
+            background: transparent;
+            border: none;
+            border-right: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+        }
+        
+        .os-tab-button:last-child {
+            border-right: none;
+        }
+        
+        .os-tab-button:hover {
+            background: rgba(42, 82, 152, 0.05);
+            color: var(--text-primary);
+        }
+        
+        .os-tab-button.active {
+            background: var(--content-bg);
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            margin-bottom: -2px;
+        }
+        
+        /* Tab content area */
+        .os-tab-content {
+            padding: var(--spacing-lg);
+        }
+        
+        /* Individual tab pane */
+        .os-tab-pane {
+            display: none;
+        }
+        
+        .os-tab-pane.active {
+            display: block;
+        }
+        
+        /* OS icon indicators */
+        .os-tab-button::before {
+            margin-right: var(--spacing-sm);
+        }
+        
+        .os-tab-button[data-os="macos"]::before {
+            content: "\f179";  /* Apple icon */
+        }
+        
+        .os-tab-button[data-os="windows"]::before {
+            content: "\f17a";  /* Windows icon */
+        }
+        
+        .os-tab-button[data-os="linux"]::before {
+            content: "\f17c";  /* Linux icon */
+        }
+        
+        /* ========================================
+           CHECKLIST PANEL
+           Progress tracking and task completion
+           ======================================== */
+        
+        .checklist-panel h2 {
+            font-size: 1.25rem;
+            margin-bottom: var(--spacing-lg);
+            color: var(--primary-dark);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: var(--spacing-sm);
+        }
+        
+        /* Progress bar container */
+        .progress-section {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-sm);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Progress bar */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        /* Progress fill */
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            transition: width var(--transition-normal);
+        }
+        
+        /* Checklist items */
+        .checklist-section {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .checklist-section h3 {
+            font-size: 1rem;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+        }
+        
+        /* Individual checklist item */
+        .checklist-item {
+            display: flex;
+            align-items: flex-start;
+            padding: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+            background: var(--bg-color);
+            border-radius: 4px;
+            transition: background var(--transition-fast);
+        }
+        
+        .checklist-item:hover {
+            background: var(--code-bg);
+        }
+        
+        /* Checkbox styling */
+        .checklist-item input[type="checkbox"] {
+            margin-right: var(--spacing-sm);
+            margin-top: 4px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+        
+        /* Checked item styling */
+        .checklist-item.completed {
+            opacity: 0.6;
+        }
+        
+        .checklist-item.completed label {
+            text-decoration: line-through;
+        }
+        
+        .checklist-item label {
+            flex: 1;
+            cursor: pointer;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        /* ========================================
+           NAVIGATION CONTROLS
+           Previous/Next buttons
+           ======================================== */
+        
+        .nav-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: var(--spacing-xl);
+            padding-top: var(--spacing-lg);
+            border-top: 2px solid var(--border-color);
+        }
+        
+        .nav-button {
+            padding: var(--spacing-md) var(--spacing-lg);
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .nav-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(42, 82, 152, 0.3);
+        }
+        
+        .nav-button:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* Arrow icons for navigation */
+        .nav-button::before,
+        .nav-button::after {
+            font-size: 1.2rem;
+        }
+        
+        .nav-button.prev::before {
+            content: '←';
+        }
+        
+        .nav-button.next::after {
+            content: '→';
+        }
+        
+        /* ========================================
+           UTILITY CLASSES
+           Helper classes for common patterns
+           ======================================== */
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .mt-lg {
+            margin-top: var(--spacing-lg);
+        }
+        
+        /* ========================================
+           RESPONSIVE DESIGN
+           Mobile and tablet adjustments
+           ======================================== */
+        
+        @media (max-width: 1024px) {
+            /* Hide checklist on tablets */
+            .checklist-panel {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            /* Stack layout on mobile */
+            .app-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 50vh;
+            }
+            
+            .content {
+                padding: var(--spacing-md);
+            }
+        }
+        
+        /* ========================================
+           SCROLLBAR STYLING
+           Custom scrollbars for better aesthetics
+           ======================================== */
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+        
+        /* ========================================
+           PRINT STYLES
+           Optimized layout for printing
+           ======================================== */
+        
+        @media print {
+            .sidebar,
+            .checklist-panel,
+            .nav-controls {
+                display: none;
+            }
+            
+            .content {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main application container -->
+    <div class="app-container">
+        <!-- Left Sidebar - Navigation and File Selection -->
+        <aside class="sidebar">
+            <!-- Sidebar header with branding -->
+            <div class="sidebar-header">
+                <h1>🔭 Big Skies</h1>
+                <p>Tutorial Viewer</p>
+            </div>
+            
+            <!-- File selector dropdown -->
+            <div class="file-selector">
+                <label for="fileSelect">Select Tutorial</label>
+                <select id="fileSelect">
+                    <option value="">Loading tutorials...</option>
+                </select>
+            </div>
+            
+            <!-- Navigation menu - populated dynamically -->
+            <nav class="nav-menu" id="navMenu">
+                <p class="text-center" style="color: rgba(255, 255, 255, 0.5); padding: 2rem;">
+                    Select a tutorial to begin
+                </p>
+            </nav>
+        </aside>
+        
+        <!-- Main Content Area - Tutorial Content -->
+        <main class="content">
+            <div id="content">
+                <div class="loading">Loading tutorial content</div>
+            </div>
+            
+            <!-- Navigation controls - Previous/Next buttons -->
+            <div class="nav-controls hidden" id="navControls">
+                <button class="nav-button prev" id="prevBtn">Previous</button>
+                <button class="nav-button next" id="nextBtn">Next</button>
+            </div>
+        </main>
+        
+        <!-- Right Sidebar - Progress Checklist -->
+        <aside class="checklist-panel">
+            <h2>Progress Tracker</h2>
+            
+            <!-- Progress bar -->
+            <div class="progress-section">
+                <div class="progress-label">
+                    <span>Completion</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <!-- Checklist items - populated dynamically -->
+            <div id="checklistContent">
+                <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                    Complete lessons to track your progress
+                </p>
+            </div>
+        </aside>
+    </div>
+
+    <!-- JavaScript Application Code -->
+    <script>
+        // ========================================
+        // APPLICATION STATE
+        // Global variables for tracking application state
+        // ========================================
+        
+        // Store parsed lessons from markdown
+        let lessons = [];
+        
+        // Currently active lesson index (0-based)
+        let currentLessonIndex = 0;
+        
+        // Store completion state in localStorage
+        // Key format: "bigskies-tutorial-{filename}-completed"
+        const STORAGE_PREFIX = 'bigskies-tutorial-';
+        
+        // ========================================
+        // INITIALIZATION
+        // Run when page loads
+        // ========================================
+        
+        // Wait for DOM to be fully loaded before executing
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Log initialization for debugging
+            console.log('Tutorial viewer initializing...');
+            
+            // Load list of available markdown files
+            await loadAvailableFiles();
+            
+            // Set up event listeners for user interactions
+            setupEventListeners();
+            
+            // Configure marked.js options for markdown parsing
+            configureMarked();
+        });
+        
+        // ========================================
+        // FILE LOADING AND SELECTION
+        // Functions for discovering and loading markdown files
+        // ========================================
+        
+        /**
+         * Load list of available markdown files in the tutorials directory
+         * Uses fetch API to read directory contents
+         */
+        async function loadAvailableFiles() {
+            try {
+                // Get reference to the select dropdown
+                const select = document.getElementById('fileSelect');
+                
+                // List of markdown files to look for
+                // In a production environment, this would be generated dynamically
+                // For now, we list known files
+                const knownFiles = [
+                    'NOVICE_DEVELOPER_GUIDE.md',
+                    'FYNE_UI_TUTORIAL.md',
+                    // Add more tutorial files here as they're created
+                ];
+                
+                // Clear loading message
+                select.innerHTML = '';
+                
+                // Add option for each file
+                for (const filename of knownFiles) {
+                    try {
+                        // Try to fetch the file to verify it exists
+                        const response = await fetch(filename, { method: 'HEAD' });
+                        
+                        if (response.ok) {
+                            // File exists - add to dropdown
+                            const option = document.createElement('option');
+                            option.value = filename;
+                            // Format filename for display (remove extension, format nicely)
+                            option.textContent = formatFilename(filename);
+                            select.appendChild(option);
+                        }
+                    } catch (err) {
+                        // File doesn't exist or can't be accessed - skip it
+                        console.warn(`File not found: ${filename}`);
+                    }
+                }
+                
+                // If no files found, show error
+                if (select.options.length === 0) {
+                    select.innerHTML = '<option value="">No tutorials found</option>';
+                    return;
+                }
+                
+                // Automatically load the first file
+                if (select.options.length > 0) {
+                    await loadMarkdownFile(select.options[0].value);
+                }
+            } catch (error) {
+                console.error('Error loading file list:', error);
+                showError('Failed to load tutorial list');
+            }
+        }
+        
+        /**
+         * Format filename for display
+         * Converts "NOVICE_DEVELOPER_GUIDE.md" to "Novice Developer Guide"
+         */
+        function formatFilename(filename) {
+            return filename
+                .replace('.md', '')                    // Remove extension
+                .replace(/_/g, ' ')                    // Replace underscores with spaces
+                .split(' ')                            // Split into words
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())  // Title case
+                .join(' ');                            // Join back together
+        }
+        
+        /**
+         * Load and parse a markdown file
+         * Fetches the file, parses it, and displays the content
+         */
+        async function loadMarkdownFile(filename) {
+            try {
+                // Show loading indicator
+                showLoading();
+                
+                // Fetch the markdown file
+                const response = await fetch(filename);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load ${filename}: ${response.statusText}`);
+                }
+                
+                // Get text content
+                const markdown = await response.text();
+                
+                // Parse markdown into lessons
+                lessons = parseMarkdownIntoLessons(markdown);
+                
+                console.log(`Parsed ${lessons.length} lessons from ${filename}`);
+                
+                // Build navigation menu
+                buildNavigationMenu();
+                
+                // Load completion state from localStorage
+                loadCompletionState(filename);
+                
+                // Display first lesson
+                currentLessonIndex = 0;
+                displayLesson(0);
+                
+                // Build checklist
+                buildChecklist();
+                
+            } catch (error) {
+                console.error('Error loading markdown file:', error);
+                showError(`Failed to load tutorial: ${error.message}`);
+            }
+        }
+        
+        // ========================================
+        // MARKDOWN PARSING
+        // Parse markdown into structured lesson objects
+        // ========================================
+        
+        /**
+         * Parse markdown content into separate lesson objects
+         * Each lesson is a top-level section (starts with ##)
+         * Returns array of lesson objects with title and content
+         */
+        function parseMarkdownIntoLessons(markdown) {
+            const lessons = [];
+            
+            // Split markdown by ## headers (lesson boundaries)
+            // This regex splits on ## but keeps the header text
+            const sections = markdown.split(/^## /gm);
+            
+            // First section is introduction (before first ##)
+            if (sections[0].trim()) {
+                lessons.push({
+                    title: 'Introduction',
+                    content: sections[0].trim(),
+                    number: 0
+                });
+            }
+            
+            // Process remaining sections
+            for (let i = 1; i < sections.length; i++) {
+                const section = sections[i];
+                
+                // Extract title (first line) and content (rest)
+                const lines = section.split('\n');
+                const title = lines[0].trim();
+                const content = lines.slice(1).join('\n').trim();
+                
+                // Skip if content is empty
+                if (!content) continue;
+                
+                lessons.push({
+                    title: title,
+                    content: content,
+                    number: lessons.length
+                });
+            }
+            
+            return lessons;
+        }
+        
+        // ========================================
+        // NAVIGATION MENU
+        // Build and manage the lesson navigation sidebar
+        // ========================================
+        
+        /**
+         * Build the navigation menu from parsed lessons
+         * Creates clickable lesson items in the sidebar
+         */
+        function buildNavigationMenu() {
+            const navMenu = document.getElementById('navMenu');
+            navMenu.innerHTML = '';  // Clear existing content
+            
+            // Create lesson item for each parsed lesson
+            lessons.forEach((lesson, index) => {
+                const lessonItem = document.createElement('div');
+                lessonItem.className = 'lesson-item';
+                lessonItem.dataset.index = index;  // Store index for event handling
+                
+                // Add active class to first lesson
+                if (index === 0) {
+                    lessonItem.classList.add('active');
+                }
+                
+                // Build lesson item HTML
+                lessonItem.innerHTML = `
+                    <span class="lesson-number">${index + 1}</span>
+                    <span class="lesson-title">${lesson.title}</span>
+                `;
+                
+                // Click handler to navigate to this lesson
+                lessonItem.addEventListener('click', () => {
+                    displayLesson(index);
+                });
+                
+                navMenu.appendChild(lessonItem);
+            });
+        }
+        
+        /**
+         * Update active state in navigation menu
+         * Highlights the currently displayed lesson
+         */
+        function updateNavigationActive(index) {
+            // Remove active class from all items
+            document.querySelectorAll('.lesson-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Add active class to current lesson
+            const activeItem = document.querySelector(`.lesson-item[data-index="${index}"]`);
+            if (activeItem) {
+                activeItem.classList.add('active');
+                
+                // Scroll active item into view if needed
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+        
+        // ========================================
+        // LESSON DISPLAY
+        // Render lesson content with syntax highlighting
+        // ========================================
+        
+        /**
+         * Display a specific lesson by index
+         * Converts markdown to HTML and applies syntax highlighting
+         */
+        function displayLesson(index) {
+            // Validate index
+            if (index < 0 || index >= lessons.length) {
+                console.error('Invalid lesson index:', index);
+                return;
+            }
+            
+            // Update state
+            currentLessonIndex = index;
+            const lesson = lessons[index];
+            
+            // Get content container
+            const contentDiv = document.getElementById('content');
+            
+            // Convert markdown to HTML using marked.js
+            const htmlContent = marked.parse(lesson.content);
+            
+            // Wrap in lesson-content div for styling
+            contentDiv.innerHTML = `
+                <div class="lesson-content">
+                    <h1>${lesson.title}</h1>
+                    ${htmlContent}
+                </div>
+            `;
+            
+            // Apply syntax highlighting to code blocks
+            highlightCodeBlocks();
+            
+            // Enhance code blocks with language labels and copy buttons
+            enhanceCodeBlocks();
+            
+            // Highlight comment lines in code blocks
+            highlightComments();
+            
+            // Initialize OS-specific tabs
+            initializeOSTabs();
+            
+            // Update navigation menu active state
+            updateNavigationActive(index);
+            
+            // Update prev/next buttons
+            updateNavigationButtons();
+            
+            // Show navigation controls
+            document.getElementById('navControls').classList.remove('hidden');
+            
+            // Scroll to top of content
+            contentDiv.scrollTop = 0;
+            
+            // Log for debugging
+            console.log(`Displaying lesson ${index + 1}:`, lesson.title);
+        }
+        
+        /**
+         * Apply syntax highlighting to all code blocks
+         * Uses highlight.js library
+         */
+        function highlightCodeBlocks() {
+            // Find all <pre><code> blocks
+            document.querySelectorAll('pre code').forEach((block) => {
+                // Apply highlight.js
+                hljs.highlightElement(block);
+            });
+        }
+        
+        /**
+         * Enhance code blocks with additional features
+         * Adds language labels and copy buttons
+         */
+        function enhanceCodeBlocks() {
+            document.querySelectorAll('pre').forEach((pre) => {
+                // Wrap pre in container div
+                const container = document.createElement('div');
+                container.className = 'code-block';
+                pre.parentNode.insertBefore(container, pre);
+                container.appendChild(pre);
+                
+                // Detect language from class name
+                const code = pre.querySelector('code');
+                const className = code ? code.className : '';
+                const match = className.match(/language-(\w+)/);
+                const language = match ? match[1] : 'text';
+                
+                // Add language label
+                const languageLabel = document.createElement('div');
+                languageLabel.className = 'code-language';
+                languageLabel.textContent = language;
+                container.insertBefore(languageLabel, pre);
+                
+                // Add copy button
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-button';
+                copyButton.textContent = 'Copy';
+                copyButton.onclick = () => copyCodeToClipboard(pre, copyButton);
+                container.insertBefore(copyButton, pre);
+            });
+        }
+        
+        /**
+         * Copy code block content to clipboard
+         * Provides visual feedback on success
+         */
+        async function copyCodeToClipboard(pre, button) {
+            // Get code text (without HTML markup)
+            const code = pre.querySelector('code');
+            const text = code.textContent;
+            
+            try {
+                // Use Clipboard API
+                await navigator.clipboard.writeText(text);
+                
+                // Visual feedback
+                button.textContent = 'Copied!';
+                button.style.background = 'var(--secondary-color)';
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                    button.style.background = '';
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                button.textContent = 'Failed';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
+            }
+        }
+        
+        /**
+         * Highlight comment lines in code blocks
+         * Makes comments stand out as learning points
+         */
+        function highlightComments() {
+            document.querySelectorAll('pre code').forEach((block) => {
+                // Get all lines
+                const lines = block.innerHTML.split('\n');
+                
+                // Process each line
+                const highlighted = lines.map(line => {
+                    // Check if line is a comment (starts with //, #, or /*)
+                    // This is a simple check - could be enhanced
+                    const trimmed = line.trim();
+                    const isComment = trimmed.startsWith('//') || 
+                                    trimmed.startsWith('#') || 
+                                    trimmed.startsWith('/*') ||
+                                    trimmed.startsWith('*') ||
+                                    trimmed.startsWith('<!--');
+                    
+                    // Wrap comment lines in highlight span
+                    if (isComment && trimmed.length > 3) {  // Ignore very short comments
+                        return `<span class="comment-highlight">${line}</span>`;
+                    }
+                    return line;
+                });
+                
+                // Update block HTML
+                block.innerHTML = highlighted.join('\n');
+            });
+        }
+        
+        // ========================================
+        // NAVIGATION CONTROLS
+        // Previous/Next button functionality
+        // ========================================
+        
+        /**
+         * Update state of previous/next buttons
+         * Disables buttons when at start/end of lessons
+         */
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            // Disable prev button on first lesson
+            prevBtn.disabled = currentLessonIndex === 0;
+            
+            // Disable next button on last lesson
+            nextBtn.disabled = currentLessonIndex === lessons.length - 1;
+        }
+        
+        /**
+         * Navigate to previous lesson
+         */
+        function navigatePrevious() {
+            if (currentLessonIndex > 0) {
+                displayLesson(currentLessonIndex - 1);
+            }
+        }
+        
+        /**
+         * Navigate to next lesson
+         * Marks current lesson as complete
+         */
+        function navigateNext() {
+            if (currentLessonIndex < lessons.length - 1) {
+                // Mark current lesson as complete
+                markLessonComplete(currentLessonIndex);
+                
+                // Move to next lesson
+                displayLesson(currentLessonIndex + 1);
+            }
+        }
+        
+        // ========================================
+        // PROGRESS TRACKING
+        // Checklist and completion state management
+        // ========================================
+        
+        /**
+         * Build checklist panel from lessons
+         * Creates checkboxes for each lesson
+         */
+        function buildChecklist() {
+            const checklistContent = document.getElementById('checklistContent');
+            checklistContent.innerHTML = '';
+            
+            // Group lessons by category (could be enhanced to parse actual categories)
+            const section = document.createElement('div');
+            section.className = 'checklist-section';
+            section.innerHTML = '<h3>Lessons</h3>';
+            
+            // Create checkbox for each lesson
+            lessons.forEach((lesson, index) => {
+                const item = document.createElement('div');
+                item.className = 'checklist-item';
+                item.dataset.index = index;
+                
+                // Create checkbox input
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `check-${index}`;
+                checkbox.onchange = () => toggleLessonComplete(index, checkbox.checked);
+                
+                // Create label
+                const label = document.createElement('label');
+                label.htmlFor = `check-${index}`;
+                label.textContent = `${index + 1}. ${lesson.title}`;
+                
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                section.appendChild(item);
+            });
+            
+            checklistContent.appendChild(section);
+        }
+        
+        /**
+         * Mark lesson as complete
+         * Updates UI and saves to localStorage
+         */
+        function markLessonComplete(index) {
+            // Update checkbox
+            const checkbox = document.getElementById(`check-${index}`);
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                
+                // Update checklist item styling
+                const item = checkbox.closest('.checklist-item');
+                if (item) {
+                    item.classList.add('completed');
+                }
+            }
+            
+            // Update navigation item
+            const navItem = document.querySelector(`.lesson-item[data-index="${index}"]`);
+            if (navItem) {
+                navItem.classList.add('completed');
+            }
+            
+            // Save to localStorage
+            saveCompletionState();
+            
+            // Update progress bar
+            updateProgressBar();
+        }
+        
+        /**
+         * Toggle lesson completion state
+         * Called when checkbox is clicked
+         */
+        function toggleLessonComplete(index, completed) {
+            // Update checklist item styling
+            const item = document.querySelector(`.checklist-item[data-index="${index}"]`);
+            if (item) {
+                if (completed) {
+                    item.classList.add('completed');
+                } else {
+                    item.classList.remove('completed');
+                }
+            }
+            
+            // Update navigation item
+            const navItem = document.querySelector(`.lesson-item[data-index="${index}"]`);
+            if (navItem) {
+                if (completed) {
+                    navItem.classList.add('completed');
+                } else {
+                    navItem.classList.remove('completed');
+                }
+            }
+            
+            // Save state
+            saveCompletionState();
+            
+            // Update progress
+            updateProgressBar();
+        }
+        
+        /**
+         * Update progress bar based on completion
+         * Calculates percentage of completed lessons
+         */
+        function updateProgressBar() {
+            // Count completed lessons
+            const completed = document.querySelectorAll('.checklist-item input:checked').length;
+            const total = lessons.length;
+            
+            // Calculate percentage
+            const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+            
+            // Update progress bar
+            const progressFill = document.getElementById('progressFill');
+            const progressPercent = document.getElementById('progressPercent');
+            
+            progressFill.style.width = `${percent}%`;
+            progressPercent.textContent = `${percent}%`;
+        }
+        
+        /**
+         * Save completion state to localStorage
+         * Persists across page reloads
+         */
+        function saveCompletionState() {
+            // Get current filename
+            const select = document.getElementById('fileSelect');
+            const filename = select.value;
+            
+            if (!filename) return;
+            
+            // Get all checked lesson indices
+            const completed = [];
+            document.querySelectorAll('.checklist-item input:checked').forEach(checkbox => {
+                const index = parseInt(checkbox.closest('.checklist-item').dataset.index);
+                completed.push(index);
+            });
+            
+            // Save to localStorage
+            const key = `${STORAGE_PREFIX}${filename}-completed`;
+            localStorage.setItem(key, JSON.stringify(completed));
+        }
+        
+        /**
+         * Load completion state from localStorage
+         * Restores progress when returning to a tutorial
+         */
+        function loadCompletionState(filename) {
+            const key = `${STORAGE_PREFIX}${filename}-completed`;
+            const saved = localStorage.getItem(key);
+            
+            if (!saved) return;
+            
+            try {
+                const completed = JSON.parse(saved);
+                
+                // Mark each completed lesson
+                completed.forEach(index => {
+                    const checkbox = document.getElementById(`check-${index}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        
+                        // Update styling
+                        const item = checkbox.closest('.checklist-item');
+                        if (item) {
+                            item.classList.add('completed');
+                        }
+                        
+                        const navItem = document.querySelector(`.lesson-item[data-index="${index}"]`);
+                        if (navItem) {
+                            navItem.classList.add('completed');
+                        }
+                    }
+                });
+                
+                // Update progress bar
+                updateProgressBar();
+            } catch (err) {
+                console.error('Error loading completion state:', err);
+            }
+        }
+        
+        // ========================================
+        // EVENT LISTENERS
+        // Set up user interaction handlers
+        // ========================================
+        
+        /**
+         * Set up all event listeners
+         * Called once during initialization
+         */
+        function setupEventListeners() {
+            // File selector change
+            document.getElementById('fileSelect').addEventListener('change', (e) => {
+                const filename = e.target.value;
+                if (filename) {
+                    loadMarkdownFile(filename);
+                }
+            });
+            
+            // Previous button
+            document.getElementById('prevBtn').addEventListener('click', navigatePrevious);
+            
+            // Next button
+            document.getElementById('nextBtn').addEventListener('click', navigateNext);
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Left arrow = previous
+                if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey) {
+                    const prevBtn = document.getElementById('prevBtn');
+                    if (!prevBtn.disabled) {
+                        navigatePrevious();
+                    }
+                }
+                
+                // Right arrow = next
+                if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey) {
+                    const nextBtn = document.getElementById('nextBtn');
+                    if (!nextBtn.disabled) {
+                        navigateNext();
+                    }
+                }
+            });
+        }
+        
+        /**
+         * Initialize OS tabs after content is rendered
+         * Sets up click handlers for tab switching
+         */
+        function initializeOSTabs() {
+            // Find all OS tab containers
+            document.querySelectorAll('.os-tabs').forEach(tabContainer => {
+                const buttons = tabContainer.querySelectorAll('.os-tab-button');
+                const panes = tabContainer.querySelectorAll('.os-tab-pane');
+                
+                // Add click handlers to buttons
+                buttons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const targetOS = button.dataset.os;
+                        
+                        // Remove active from all buttons in this container
+                        buttons.forEach(btn => btn.classList.remove('active'));
+                        
+                        // Add active to clicked button
+                        button.classList.add('active');
+                        
+                        // Hide all panes in this container
+                        panes.forEach(pane => pane.classList.remove('active'));
+                        
+                        // Show target pane
+                        const targetPane = tabContainer.querySelector(`.os-tab-pane[data-os="${targetOS}"]`);
+                        if (targetPane) {
+                            targetPane.classList.add('active');
+                        }
+                    });
+                });
+            });
+        }
+        
+        // ========================================
+        // MARKED.JS CONFIGURATION
+        // Configure markdown parser options
+        // ========================================
+        
+        /**
+         * Configure marked.js with custom options
+         * Sets up rendering preferences
+         */
+        function configureMarked() {
+            marked.setOptions({
+                // Enable GitHub Flavored Markdown
+                gfm: true,
+                
+                // Enable line breaks
+                breaks: true,
+                
+                // Sanitize HTML (security)
+                sanitize: false,  // We trust our own markdown
+                
+                // Highlight code blocks
+                highlight: function(code, lang) {
+                    // Use highlight.js if language is specified
+                    if (lang && hljs.getLanguage(lang)) {
+                        try {
+                            return hljs.highlight(code, { language: lang }).value;
+                        } catch (err) {
+                            console.error('Highlight error:', err);
+                        }
+                    }
+                    return code;
+                }
+            });
+        }
+        
+        // ========================================
+        // UTILITY FUNCTIONS
+        // Helper functions for common tasks
+        // ========================================
+        
+        /**
+         * Show loading indicator
+         */
+        function showLoading() {
+            document.getElementById('content').innerHTML = '<div class="loading">Loading tutorial content</div>';
+        }
+        
+        /**
+         * Show error message
+         */
+        function showError(message) {
+            document.getElementById('content').innerHTML = `
+                <div class="error">
+                    <strong>Error:</strong> ${message}
+                </div>
+            `;
+        }
+        
+        // Log that script has loaded
+        console.log('Tutorial viewer script loaded');
+    </script>
+</body>
+</html>

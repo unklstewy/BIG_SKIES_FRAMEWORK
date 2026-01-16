@@ -5,8 +5,8 @@ import "time"
 
 // ConfigRequest represents a configuration load request from MQTT.
 type ConfigRequest struct {
-	Command   string `json:"command"`   // load_config, list_configs, get_status
-	Model     string `json:"model"`     // s30, s30-pro, s50 (for load_config)
+	Command   string `json:"command"`    // load_config, list_configs, get_status
+	Model     string `json:"model"`      // s30, s30-pro, s50 (for load_config)
 	MountType string `json:"mount_type"` // altaz, equatorial, german-equatorial (for load_config)
 	RequestID string `json:"request_id"` // Optional request ID for tracking
 }
@@ -54,9 +54,9 @@ var validModels = map[string]string{
 
 // Valid mount types and their descriptions
 var validMountTypes = map[string]string{
-	"altaz":              "Altitude-Azimuth mount",
-	"equatorial":         "Equatorial mount (polar-aligned)",
-	"german-equatorial":  "German Equatorial mount (with meridian flip)",
+	"altaz":             "Altitude-Azimuth mount",
+	"equatorial":        "Equatorial mount (polar-aligned)",
+	"german-equatorial": "German Equatorial mount (with meridian flip)",
 }
 
 // ValidateModel checks if the provided model is valid.
@@ -90,13 +90,13 @@ func GetMountTypeDescription(mountType string) string {
 // GetAvailableConfigs returns all available configurations.
 func GetAvailableConfigs() []AvailableConfig {
 	configs := make([]AvailableConfig, 0, len(validModels))
-	
+
 	// Get mount types as slice
 	mountTypes := make([]string, 0, len(validMountTypes))
 	for mt := range validMountTypes {
 		mountTypes = append(mountTypes, mt)
 	}
-	
+
 	for model, desc := range validModels {
 		configs = append(configs, AvailableConfig{
 			Model:       model,
@@ -104,6 +104,6 @@ func GetAvailableConfigs() []AvailableConfig {
 			Description: desc,
 		})
 	}
-	
+
 	return configs
 }

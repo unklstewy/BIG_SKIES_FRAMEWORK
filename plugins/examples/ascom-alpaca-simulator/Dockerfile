@@ -50,7 +50,14 @@ COPY plugins/examples/ascom-alpaca-simulator/config-service/ .
 RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o config-service .
 
-# Stage 4: Runtime image
+# Stage 4: Build Go state publisher
+FROM golang:1.24-alpine AS state-publisher-builder
+WORKDIR /app
+COPY plugins/examples/ascom-alpaca-simulator/state-publisher/ .
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -o state-publisher .
+
+# Stage 5: Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
@@ -68,6 +75,9 @@ COPY --from=health-reporter-builder /app/health-reporter /usr/local/bin/
 
 # Copy config service
 COPY --from=config-service-builder /app/config-service /usr/local/bin/
+
+# Copy state publisher
+COPY --from=state-publisher-builder /app/state-publisher /usr/local/bin/
 
 # Copy configuration files
 COPY plugins/examples/ascom-alpaca-simulator/configs/ /app/configs/

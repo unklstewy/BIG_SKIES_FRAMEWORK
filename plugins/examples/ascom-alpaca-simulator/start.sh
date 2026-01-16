@@ -30,6 +30,13 @@ shutdown() {
     echo ""
     echo "Shutting down ASCOM Alpaca Simulators Plugin..."
     
+    # Kill state publisher
+    if [ ! -z "$STATE_PID" ]; then
+        echo "Stopping state publisher (PID: $STATE_PID)..."
+        kill -TERM "$STATE_PID" 2>/dev/null || true
+        wait "$STATE_PID" 2>/dev/null || true
+    fi
+    
     # Kill config service
     if [ ! -z "$CONFIG_PID" ]; then
         echo "Stopping config service (PID: $CONFIG_PID)..."
@@ -87,6 +94,13 @@ CONFIG_PID=$!
 echo "Config service started (PID: $CONFIG_PID)"
 echo ""
 
+echo "Starting state publisher..."
+# Start state publisher in background
+/usr/local/bin/state-publisher 2>&1 | sed 's/^/[State] /' &
+STATE_PID=$!
+echo "State publisher started (PID: $STATE_PID)"
+echo ""
+
 echo "========================================="
 echo "Plugin is now running"
 echo "  ASCOM Web UI: http://localhost:32323"
@@ -96,14 +110,18 @@ echo "========================================="
 echo ""
 
 # Wait for any process to exit
-wait -n $ASCOM_PID $HEALTH_PID $CONFIG_PID
+wait -n $ASCOM_PID $HEALTH_PID $CONFIG_PID $STATE_PID
 
 # If we get here, one of the processes died
 EXIT_CODE=$?
 
 if ps -p $ASCOM_PID > /dev/null 2>&1; then
     if ps -p $HEALTH_PID > /dev/null 2>&1; then
-        echo "Config service died unexpectedly (exit code: $EXIT_CODE)"
+        if ps -p $CONFIG_PID > /dev/null 2>&1; then
+            echo "State publisher died unexpectedly (exit code: $EXIT_CODE)"
+        else
+            echo "Config service died unexpectedly (exit code: $EXIT_CODE)"
+        fi
     else
         echo "Health reporter died unexpectedly (exit code: $EXIT_CODE)"
     fi

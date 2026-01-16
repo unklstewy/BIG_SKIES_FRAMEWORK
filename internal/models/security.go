@@ -123,15 +123,15 @@ type PermissionCheckResponse struct {
 // CertificateRequest represents a certificate generation/renewal request.
 type CertificateRequest struct {
 	Domain string   `json:"domain"`
-	Email  string   `json:"email"` // For Let's Encrypt notifications
-	Type   string   `json:"type"`  // "letsencrypt" or "self-signed"
+	Email  string   `json:"email"`          // For Let's Encrypt notifications
+	Type   string   `json:"type"`           // "letsencrypt" or "self-signed"
 	SANs   []string `json:"sans,omitempty"` // Subject Alternative Names
 }
 
 // CertificateResponse represents a certificate operation response.
 type CertificateResponse struct {
-	Success    bool      `json:"success"`
-	Domain     string    `json:"domain"`
-	ExpiresAt  time.Time `json:"expires_at,omitempty"`
-	Error      string    `json:"error,omitempty"`
+	Success   bool      `json:"success"`
+	Domain    string    `json:"domain"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	Error     string    `json:"error,omitempty"`
 }

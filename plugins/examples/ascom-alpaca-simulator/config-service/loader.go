@@ -12,10 +12,10 @@ import (
 const (
 	// ConfigSourceDir is the base directory for configuration sources in the container
 	ConfigSourceDir = "/app/configs"
-	
+
 	// ConfigTargetDir is the ASCOM configuration directory
 	ConfigTargetDir = "/tmp/ascom-config/alpaca/ascom-alpaca-simulator"
-	
+
 	// StateFile stores the current configuration state
 	StateFile = "/tmp/ascom-current-config.json"
 )
@@ -85,7 +85,7 @@ func (cl *ConfigLoader) LoadConfiguration(model, mountType, loadedBy string) err
 		LoadedBy:   loadedBy,
 		ConfigPath: sourcePath,
 	}
-	
+
 	if err := cl.saveState(status); err != nil {
 		return fmt.Errorf("failed to save state: %w", err)
 	}

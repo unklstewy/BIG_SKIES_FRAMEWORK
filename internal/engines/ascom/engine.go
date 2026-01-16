@@ -28,11 +28,11 @@ type Engine struct {
 
 // managedDevice represents a managed ASCOM device with connection state.
 type managedDevice struct {
-	device       *models.AlpacaDevice
-	connected    bool
-	lastHealthy  time.Time
-	failCount    int
-	mu           sync.RWMutex
+	device      *models.AlpacaDevice
+	connected   bool
+	lastHealthy time.Time
+	failCount   int
+	mu          sync.RWMutex
 }
 
 // telescopePool manages all devices for a single telescope configuration.

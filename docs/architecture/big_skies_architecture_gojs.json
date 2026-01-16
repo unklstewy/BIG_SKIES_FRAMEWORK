@@ -1,15 +1,64 @@
 {
   "BIG SKIES FRONTEND FLUTTER": {
-    "desc": "Front End Development - On Hold Until Backend Services are Completed",
-    "architecture": "Flutter"
+    "desc": "Front End Development - Consumes UI element definitions from ui-element-coordinator via MQTT",
+    "architecture": "Flutter",
+    "ui_framework": "flutter",
+    "mqtt_integration": {
+      "queries_coordinator": "bigskies/uielement-coordinator/command/query",
+      "receives_mappings": "bigskies/uielement-coordinator/response/query/+",
+      "framework_specific": "Flutter widget mappings (Card, Column, ElevatedButton, etc.)"
+    }
   },
   "BIG SKIES FRONTEND UNITY": {
-    "desc": "Front End Development - On Hold Until Backend Services are Completed",
-    "architecture": "Unity Engine"
+    "desc": "Front End Development - Consumes UI element definitions from ui-element-coordinator via MQTT",
+    "architecture": "Unity Engine",
+    "ui_framework": "unity",
+    "mqtt_integration": {
+      "queries_coordinator": "bigskies/uielement-coordinator/command/query",
+      "receives_mappings": "bigskies/uielement-coordinator/response/query/+",
+      "framework_specific": "Unity UI component mappings (Canvas, Panel, Button, etc.)"
+    }
   },
   "BIG SKIES FRONTEND PythonGTK": {
-    "desc": "Front End Development - On Hold Until Backend Services are Completed",
-    "architecture": "Python and GTK"
+    "desc": "Front End Development - Consumes UI element definitions from ui-element-coordinator via MQTT",
+    "architecture": "Python and GTK",
+    "ui_framework": "gtk",
+    "mqtt_integration": {
+      "queries_coordinator": "bigskies/uielement-coordinator/command/query",
+      "receives_mappings": "bigskies/uielement-coordinator/response/query/+",
+      "framework_specific": "GTK widget mappings (Gtk.Frame, Gtk.Button, Gtk.Grid, etc.)"
+    },
+    "ui_mapping_reference": "docs/ui/BLAZOR_TO_GTK_MAPPING.md"
+  },
+  "BIG SKIES FRONTEND MFC": {
+    "desc": "Front End Development - Consumes UI element definitions from ui-element-coordinator via MQTT",
+    "architecture": "Microsoft Foundation Classes (C++)",
+    "ui_framework": "mfc",
+    "mqtt_integration": {
+      "queries_coordinator": "bigskies/uielement-coordinator/command/query",
+      "receives_mappings": "bigskies/uielement-coordinator/response/query/+",
+      "framework_specific": "MFC control mappings (CDialog, CButton, CStatic, etc.)"
+    }
+  },
+  "BIG SKIES FRONTEND Qt": {
+    "desc": "Front End Development - Consumes UI element definitions from ui-element-coordinator via MQTT",
+    "architecture": "Qt Framework (C++/Python)",
+    "ui_framework": "qt",
+    "mqtt_integration": {
+      "queries_coordinator": "bigskies/uielement-coordinator/command/query",
+      "receives_mappings": "bigskies/uielement-coordinator/response/query/+",
+      "framework_specific": "Qt widget mappings (QGroupBox, QPushButton, QGridLayout, etc.)"
+    }
+  },
+  "BIG SKIES FRONTEND WPF": {
+    "desc": "Front End Development - Consumes UI element definitions from ui-element-coordinator via MQTT",
+    "architecture": "Windows Presentation Foundation (.NET)",
+    "ui_framework": "wpf",
+    "mqtt_integration": {
+      "queries_coordinator": "bigskies/uielement-coordinator/command/query",
+      "receives_mappings": "bigskies/uielement-coordinator/response/query/+",
+      "framework_specific": "WPF control mappings (GroupBox, Button, StackPanel, etc.)"
+    }
   },
   "BIG SKIES BACKEND": {
     "desc": "BACKEND SERVICES AND API COORDINATION ENGINE",
@@ -97,11 +146,49 @@
           }
         },
         "ui-element-coordinator": {
-          "desc": "Responsible for ui element tracking, provisioning ui from plugins - scans plugin ui API to extend base ui",
+          "desc": "Responsible for ui element tracking, provisioning ui from plugins - scans plugin ui API to extend base ui. Supports multi-framework widget mappings (GTK, Flutter, MFC, Qt, WPF, Unity, Blazor)",
           "helthchk_engine": {
             "healtcheck-api": {},
             "healthcheck-reporter": {},
             "healthcheck-diagnostics": {}
+          },
+          "ui_element_registry": {
+            "desc": "Maintains registry of UI elements with framework-specific widget mappings",
+            "supported_frameworks": ["gtk", "flutter", "mfc", "qt", "wpf", "unity", "blazor"],
+            "element_structure": {
+              "id": "unique element identifier",
+              "type": "panel|widget|menu|tool|dialog",
+              "framework_mappings": {
+                "gtk": "GTK-specific widget mapping",
+                "flutter": "Flutter-specific widget mapping",
+                "mfc": "MFC-specific control mapping",
+                "qt": "Qt-specific widget mapping",
+                "wpf": "WPF-specific control mapping",
+                "unity": "Unity-specific component mapping",
+                "blazor": "Blazor-specific component mapping"
+              }
+            }
+          },
+          "mqtt_topics": {
+            "query_elements": "bigskies/uielement-coordinator/command/query",
+            "query_response": "bigskies/uielement-coordinator/response/query/{request_id}",
+            "register_element": "bigskies/uielement-coordinator/event/register",
+            "unregister_element": "bigskies/uielement-coordinator/event/unregister",
+            "add_mapping": "bigskies/uielement-coordinator/command/mapping/add",
+            "remove_mapping": "bigskies/uielement-coordinator/command/mapping/remove",
+            "get_frameworks": "bigskies/uielement-coordinator/command/frameworks"
+          },
+          "api_functions": {
+            "ListUIElementsByFramework": "Returns elements with specific framework mappings",
+            "GetFrameworkMapping": "Retrieves framework-specific widget mapping for element",
+            "AddFrameworkMapping": "Adds/updates framework mapping to element",
+            "RemoveFrameworkMapping": "Removes framework mapping from element",
+            "GetSupportedFrameworks": "Lists all frameworks with at least one element mapping"
+          },
+          "references": {
+            "implementation": "internal/coordinators/uielement_coordinator.go",
+            "gtk_mapping_doc": "docs/ui/BLAZOR_TO_GTK_MAPPING.md",
+            "multi_framework_examples": "docs/ui/MULTI_FRAMEWORK_UI_EXAMPLE.md"
           }
         },
         "plugin-coordinator": {

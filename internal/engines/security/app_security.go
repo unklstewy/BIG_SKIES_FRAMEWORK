@@ -16,12 +16,12 @@ import (
 
 // AppSecurityEngine manages application-level security including JWT tokens and API keys.
 type AppSecurityEngine struct {
-	jwtSecret     []byte
-	tokenDuration time.Duration
-	apiKeys       map[string]*APIKey // keyed by API key string
+	jwtSecret         []byte
+	tokenDuration     time.Duration
+	apiKeys           map[string]*APIKey   // keyed by API key string
 	blacklistedTokens map[string]time.Time // token ID -> expiry time for cleanup
-	mu            sync.RWMutex
-	logger        *zap.Logger
+	mu                sync.RWMutex
+	logger            *zap.Logger
 }
 
 // APIKey represents an API key with metadata.
@@ -114,12 +114,12 @@ func (e *AppSecurityEngine) ValidateToken(tokenString string) (*JWTClaims, error
 		e.mu.RLock()
 		_, blacklisted := e.blacklistedTokens[claims.ID]
 		e.mu.RUnlock()
-		
+
 		if blacklisted {
 			e.logger.Warn("Attempted to use blacklisted token", zap.String("user_id", claims.UserID))
 			return nil, fmt.Errorf("token has been revoked")
 		}
-		
+
 		e.logger.Debug("Token validated successfully", zap.String("user_id", claims.UserID))
 		return claims, nil
 	}

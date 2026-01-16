@@ -27,10 +27,10 @@ type SecurityCoordinator struct {
 // SecurityConfig holds configuration for the security coordinator.
 type SecurityConfig struct {
 	BaseConfig
-	DatabaseURL      string                 `json:"database_url"`
-	JWTSecret        string                 `json:"jwt_secret"`
-	TokenDuration    time.Duration          `json:"token_duration"`
-	TLSConfig        *security.TLSConfig    `json:"tls_config"`
+	DatabaseURL   string              `json:"database_url"`
+	JWTSecret     string              `json:"jwt_secret"`
+	TokenDuration time.Duration       `json:"token_duration"`
+	TLSConfig     *security.TLSConfig `json:"tls_config"`
 }
 
 // NewSecurityCoordinator creates a new security coordinator instance.
@@ -512,4 +512,3 @@ func (c *SecurityCoordinator) publishResponse(subtopic string, payload interface
 			zap.Error(err))
 	}
 }
-
