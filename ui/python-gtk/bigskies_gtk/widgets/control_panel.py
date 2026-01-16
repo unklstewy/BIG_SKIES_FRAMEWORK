@@ -39,8 +39,8 @@ class ControlPanel(Gtk.Box):
         # Slew controls
         self._build_slew_section()
         
-        # Subscribe to telescope state and plugin config responses
-        self.mqtt_client.subscribe("bigskies/telescope/0/state/#", self._on_telescope_state)
+        # Subscribe to plugin device state and config responses
+        self.mqtt_client.subscribe(f"bigskies/plugin/{self.plugin_id}/device/telescope/state", self._on_telescope_state)
         self.mqtt_client.subscribe(f"bigskies/plugin/{self.plugin_id}/config/response", self._on_config_response)
         self.mqtt_client.subscribe(f"bigskies/plugin/{self.plugin_id}/config/event", self._on_config_event)
         
@@ -255,39 +255,46 @@ class ControlPanel(Gtk.Box):
         # TODO: Navigate to setup view
         
     def _on_telescope_state(self, topic, payload):
-        """Handle telescope state updates."""
-        # Extract state type from topic
-        parts = topic.split('/')
-        if len(parts) >= 4:
-            state_type = parts[3]
+        """Handle telescope state updates from plugin."""
+        # Update connection status
+        connected = payload.get("connected", False)
+        if connected != self.connected:
+            self.connected = connected
+            self.connect_button.set_label("Disconnect" if self.connected else "Connect")
+            self.status_indicator.queue_draw()
+            logger.info(f"Telescope connection state: {connected}")
             
-            if state_type == "connected":
-                self.connected = payload.get("value", False)
-                self.connect_button.set_label("Disconnect" if self.connected else "Connect")
-                self.status_indicator.queue_draw()
-                
-            elif state_type == "lst":
-                self.lst_value.set_text(payload.get("value", "00:00:00"))
-                
-            elif state_type == "ra":
-                self.ra_value.set_text(payload.get("value", "00:00:00"))
-                
-            elif state_type == "dec":
-                self.dec_value.set_text(payload.get("value", "+00:00:00"))
-                
-            elif state_type == "azimuth":
-                az = payload.get("value", 0.0)
-                self.az_value.set_text(f"{az:.2f}°")
-                
-            elif state_type == "altitude":
-                alt = payload.get("value", 0.0)
-                self.alt_value.set_text(f"{alt:.2f}°")
-                
-            elif state_type == "slewing":
-                slewing = payload.get("value", False)
-                if slewing:
-                    self.slew_label.set_markup("<span color='orange'><b>SLEWING</b></span>")
-                else:
+        if self.connected:
+            # Update telescope coordinates
+            ra = payload.get("right_ascension", 0.0)
+            dec = payload.get("declination", 0.0)
+            alt = payload.get("altitude", 0.0)
+            az = payload.get("azimuth", 0.0)
+            
+            # Convert RA from hours to HH:MM:SS
+            ra_hours = int(ra)
+            ra_minutes = int((ra - ra_hours) * 60)
+            ra_seconds = int(((ra - ra_hours) * 60 - ra_minutes) * 60)
+            self.ra_value.set_text(f"{ra_hours:02d}:{ra_minutes:02d}:{ra_seconds:02d}")
+            
+            # Convert Dec from degrees to DD:MM:SS
+            dec_sign = "+" if dec >= 0 else "-"
+            dec_abs = abs(dec)
+            dec_deg = int(dec_abs)
+            dec_min = int((dec_abs - dec_deg) * 60)
+            dec_sec = int(((dec_abs - dec_deg) * 60 - dec_min) * 60)
+            self.dec_value.set_text(f"{dec_sign}{dec_deg:02d}:{dec_min:02d}:{dec_sec:02d}")
+            
+            self.az_value.set_text(f"{az:.2f}°")
+            self.alt_value.set_text(f"{alt:.2f}°")
+            
+            # Update slewing status
+            slewing = payload.get("slewing", False)
+            if slewing:
+                self.slew_label.set_markup("<span color='orange'><b>SLEWING</b></span>")
+            else:
+                # Check if config was just loaded
+                if "All" not in self.slew_label.get_text() and "Loading" not in self.slew_label.get_text():
                     self.slew_label.set_text("Idle")
                     
     def _request_configurations(self):
@@ -365,6 +372,17 @@ class ControlPanel(Gtk.Box):
         event_type = payload.get("event_type", "")
         message = payload.get("message", "")
         logger.info(f"Config event: {event_type} - {message}")
+        
+        # Update UI based on event type
+        if event_type == "config_loaded":
+            status = payload.get("status", {})
+            model = status.get("model", "")
+            mount_type = status.get("mount_type", "")
+            self.slew_label.set_markup(f"<span color='blue'>Loading {model}/{mount_type}...</span>")
+        elif event_type == "devices_connected":
+            self.slew_label.set_markup(f"<span color='green'><b>✓ {message}</b></span>")
+        elif event_type == "config_failed":
+            self.slew_label.set_markup(f"<span color='red'>Config failed: {message}</span>")
         
     def _on_selection_changed(self, combo):
         """Handle model or mount type selection change."""
