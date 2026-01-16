@@ -44,7 +44,7 @@ func NewBaseCoordinator(name string, mqttClient *mqtt.Client, logger *zap.Logger
 		logger = zap.NewNop()
 	}
 
-	healthEngine := healthcheck.NewEngine(logger, 30*time.Second)
+	healthEngine := healthcheck.NewEngine(logger, 3*time.Second)
 
 	return &BaseCoordinator{
 		name:          name,
