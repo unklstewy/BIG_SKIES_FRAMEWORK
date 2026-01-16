@@ -1,4 +1,5 @@
 .PHONY: help build test test-unit test-integration test-coverage lint fmt clean install-tools
+.PHONY: docker-build docker-up docker-down docker-logs plugin-ascom-build plugin-ascom-up plugin-ascom-down plugin-ascom-logs
 
 # Default target
 help:
@@ -8,14 +9,21 @@ help:
 	@echo "  make test             - Run all tests (unit + integration)"
 	@echo "  make test-unit        - Run unit tests only"
 	@echo "  make test-integration - Run integration tests (requires services)"
-	@echo "  make test-coverage    - Run tests with coverage"
+	@echo "  make test-coverage    - Run tests with coverage report"
 	@echo "  make lint             - Run linters"
-	@echo "  make fmt           - Format code"
-	@echo "  make clean         - Clean build artifacts"
-	@echo "  make install-tools - Install development tools"
-	@echo "  make docker-build  - Build Docker images"
-	@echo "  make docker-up     - Start services with docker-compose"
-	@echo "  make docker-down   - Stop services"
+	@echo "  make fmt              - Format code"
+	@echo "  make clean            - Clean build artifacts"
+	@echo "  make install-tools    - Install development tools"
+	@echo "  make docker-build     - Build Docker images"
+	@echo "  make docker-up        - Start services with docker-compose"
+	@echo "  make docker-down      - Stop services"
+	@echo "  make docker-logs      - View service logs"
+	@echo ""
+	@echo "Plugin Commands:"
+	@echo "  make plugin-ascom-build - Build ASCOM Alpaca Simulator plugin"
+	@echo "  make plugin-ascom-up    - Start ASCOM plugin"
+	@echo "  make plugin-ascom-down  - Stop ASCOM plugin"
+	@echo "  make plugin-ascom-logs  - View ASCOM plugin logs"
 
 # Build all services
 build:
@@ -91,3 +99,20 @@ docker-down:
 
 docker-logs:
 	@docker-compose -f deployments/docker-compose/docker-compose.yml logs -f
+
+# Plugin-specific targets
+plugin-ascom-build:
+	@echo "Building ASCOM Alpaca Simulator plugin..."
+	@docker-compose -f deployments/docker-compose/docker-compose.yml build ascom-alpaca-simulator
+
+plugin-ascom-up:
+	@echo "Starting ASCOM Alpaca Simulator plugin..."
+	@docker-compose -f deployments/docker-compose/docker-compose.yml up -d ascom-alpaca-simulator
+	@echo "Plugin started. Access at http://localhost:32323"
+
+plugin-ascom-down:
+	@echo "Stopping ASCOM Alpaca Simulator plugin..."
+	@docker-compose -f deployments/docker-compose/docker-compose.yml stop ascom-alpaca-simulator
+
+plugin-ascom-logs:
+	@docker-compose -f deployments/docker-compose/docker-compose.yml logs -f ascom-alpaca-simulator

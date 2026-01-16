@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -133,6 +138,9 @@ func (h *ConfigHandler) handleLoadConfig(req ConfigRequest) {
 	h.publishEvent("config_loaded", *status, "Configuration loaded: "+req.Model+"/"+req.MountType)
 
 	log.Printf("Configuration loaded successfully: %s/%s", req.Model, req.MountType)
+
+	// Connect all devices after configuration load
+	go h.connectAllDevices()
 }
 
 // handleListConfigs returns the list of available configurations.
@@ -255,4 +263,82 @@ func (h *ConfigHandler) publishEvent(eventType string, status ConfigStatus, mess
 	} else {
 		log.Printf("Published event: %s", eventType)
 	}
+}
+
+// connectAllDevices connects all ASCOM devices after configuration load.
+func (h *ConfigHandler) connectAllDevices() {
+	// Wait a moment for ASCOM to reload the configuration
+	time.Sleep(2 * time.Second)
+
+	log.Println("Connecting all devices after configuration load...")
+
+	devices := []string{"telescope", "camera", "filterwheel", "focuser", "switch"}
+	connected := 0
+	failed := []string{}
+
+	for _, device := range devices {
+		if err := h.connectDevice(device); err != nil {
+			log.Printf("Failed to connect %s: %v", device, err)
+			failed = append(failed, device)
+		} else {
+			log.Printf("Connected %s successfully", device)
+			connected++
+		}
+	}
+
+	if len(failed) == 0 {
+		log.Printf("All %d devices connected successfully", connected)
+		h.publishEvent("devices_connected", ConfigStatus{}, fmt.Sprintf("All %d devices connected", connected))
+	} else {
+		log.Printf("Connected %d/%d devices. Failed: %v", connected, len(devices), failed)
+		h.publishEvent("devices_connected", ConfigStatus{}, 
+			fmt.Sprintf("Connected %d/%d devices. Failed: %v", connected, len(devices), failed))
+	}
+}
+
+// connectDevice connects a single ASCOM device via HTTP API.
+func (h *ConfigHandler) connectDevice(deviceType string) error {
+	apiURL := fmt.Sprintf("http://localhost/api/v1/%s/0/connected", deviceType)
+
+	// Prepare form data
+	data := url.Values{}
+	data.Set("Connected", "true")
+	data.Set("ClientID", "1")
+	data.Set("ClientTransactionID", "1")
+
+	// Create PUT request
+	req, err := http.NewRequest("PUT", apiURL, bytes.NewBufferString(data.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// Execute request
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Parse response
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Check for errors
+	if errorNum, ok := result["ErrorNumber"].(float64); ok && errorNum != 0 {
+		errorMsg := result["ErrorMessage"].(string)
+		return fmt.Errorf("ASCOM error %v: %s", errorNum, errorMsg)
+	}
+
+	return nil
 }
