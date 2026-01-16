@@ -28,6 +28,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ../../configs/sql/security_schema.sql:/docker-entrypoint-initdb.d/01-security_schema.sql:ro
       - ../../configs/sql/telescope_schema.sql:/docker-entrypoint-initdb.d/02-telescope_schema.sql:ro
+      - ../../configs/sql/ascom_schema.sql:/docker-entrypoint-initdb.d/03-ascom_schema.sql:ro
     networks:
       - bigskies-network
     restart: unless-stopped
@@ -205,6 +206,48 @@ services:
     networks:
       - bigskies-network
     restart: unless-stopped
+
+  # ASCOM Coordinator
+  ascom-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.coordinator
+      args:
+        COORDINATOR_NAME: ascom-coordinator
+    container_name: bigskies-ascom-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=postgres://bigskies:${POSTGRES_PASSWORD:-changeme}@postgres:5432/bigskies?sslmode=disable
+    command: [
+      "--broker-url=tcp://mqtt-broker:1883",
+      "--database-url=postgres://bigskies:${POSTGRES_PASSWORD:-changeme}@postgres:5432/bigskies?sslmode=disable",
+      "--http-address=0.0.0.0:11111",
+      "--discovery-port=32227",
+      "--health-interval=30s",
+      "--enable-cors=true",
+      "--server-name=BigSkies ASCOM Alpaca Server",
+      "--manufacturer=BigSkies",
+      "--log-level=${LOG_LEVEL:-info}"
+    ]
+    ports:
+      - "11111:11111"    # ASCOM Alpaca HTTP API
+      - "32227:32227/udp" # ASCOM Alpaca UDP discovery
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt-broker:
+        condition: service_started
+      telescope-coordinator:
+        condition: service_started
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:11111/management/apiversions"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ASCOM Alpaca Simulator Plugin
   ascom-alpaca-simulator:
