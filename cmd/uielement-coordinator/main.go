@@ -4,19 +4,21 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/config"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/coordinators"
 	"go.uber.org/zap"
 )
 
 func main() {
 	// Parse command line flags
-	brokerURL := flag.String("broker-url", "tcp://mqtt-broker:1883", "MQTT broker URL")
-	scanInterval := flag.Duration("scan-interval", 10*time.Minute, "UI API scan interval")
+	databaseURL := flag.String("database-url", "postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable", "PostgreSQL connection string")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flag.Parse()
 
@@ -36,25 +38,64 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting BIG SKIES UI Element Coordinator",
-		zap.Duration("scan_interval", *scanInterval))
+	logger.Info("Starting BIG SKIES UI Element Coordinator")
 
-	// Create coordinator configuration
-	config := &coordinators.UIElementCoordinatorConfig{
-		BrokerURL:    *brokerURL,
-		ScanInterval: *scanInterval,
+	// Create database connection pool for configuration loading
+	ctx := context.Background()
+	dbPool, err := pgxpool.New(ctx, *databaseURL)
+	if err != nil {
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	config.Name = "uielement-coordinator"
-	config.LogLevel = *logLevel
+	defer dbPool.Close()
+
+	// Create configuration loader
+	configLoader := config.NewLoader(dbPool)
+
+	// Load coordinator configuration from database
+	coordConfig, err := configLoader.LoadCoordinatorConfig(ctx, "uielement-coordinator")
+	if err != nil {
+		logger.Fatal("Failed to load configuration from database", zap.Error(err))
+	}
+
+	// Parse configuration values with defaults
+	brokerURL, err := coordConfig.GetString("broker_url", "localhost")
+	if err != nil {
+		logger.Fatal("Failed to parse broker_url", zap.Error(err))
+	}
+	brokerPort, err := coordConfig.GetInt("broker_port", 1883)
+	if err != nil {
+		logger.Fatal("Failed to parse broker_port", zap.Error(err))
+	}
+	scanInterval, err := coordConfig.GetDuration("scan_interval", 600*time.Second)
+	if err != nil {
+		logger.Fatal("Failed to parse scan_interval", zap.Error(err))
+	}
+
+	fullBrokerURL := fmt.Sprintf("%s:%d", brokerURL, brokerPort)
+
+	logger.Info("Loaded configuration from database",
+		zap.String("broker_url", fullBrokerURL),
+		zap.Duration("scan_interval", scanInterval))
+
+	// Create coordinator configuration struct
+	cfg := &coordinators.UIElementCoordinatorConfig{
+		BrokerURL:    fullBrokerURL,
+		ScanInterval: scanInterval,
+	}
+	cfg.Name = "uielement-coordinator"
+	cfg.LogLevel = *logLevel
 
 	// Create UI element coordinator
-	coordinator, err := coordinators.NewUIElementCoordinator(config, logger)
+	coordinator, err := coordinators.NewUIElementCoordinator(cfg, logger)
 	if err != nil {
 		logger.Fatal("Failed to create UI element coordinator", zap.Error(err))
 	}
 
+	// Inject config loader for runtime updates
+	coordinator.SetConfigLoader(configLoader)
+
 	// Setup context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	startCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Start coordinator

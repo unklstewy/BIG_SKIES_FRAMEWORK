@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/config"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/healthcheck"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 	"go.uber.org/zap"
@@ -18,6 +19,7 @@ type MessageCoordinator struct {
 	*BaseCoordinator
 	config           *MessageCoordinatorConfig
 	subscribedTopics map[string]bool
+	configLoader     *config.Loader // Database configuration loader
 	mu               sync.RWMutex
 }
 
@@ -75,6 +77,11 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 	// Subscribe to coordinator health topics
 	if err := mc.subscribeHealthTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to health topics: %w", err)
+	}
+
+	// Subscribe to configuration update topic
+	if err := mc.subscribeConfigTopic(); err != nil {
+		return fmt.Errorf("failed to subscribe to config topic: %w", err)
 	}
 
 	// Start health status publishing
@@ -217,6 +224,102 @@ func (mc *MessageCoordinator) Check(ctx context.Context) *healthcheck.Result {
 		Timestamp:     time.Now(),
 		Details:       details,
 	}
+}
+
+// SetConfigLoader sets the configuration loader for runtime config updates.
+func (mc *MessageCoordinator) SetConfigLoader(loader *config.Loader) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	mc.configLoader = loader
+}
+
+// subscribeConfigTopic subscribes to configuration update messages.
+func (mc *MessageCoordinator) subscribeConfigTopic() error {
+	topic := "bigskies/coordinator/config/update/message-coordinator"
+	return mc.subscribe(topic, mc.handleConfigUpdate)
+}
+
+// handleConfigUpdate processes runtime configuration update messages.
+//
+// Expected message payload:
+//
+//	{
+//	  "config_key": "broker_port",
+//	  "config_value": 1884
+//	}
+func (mc *MessageCoordinator) handleConfigUpdate(topic string, payload []byte) error {
+	mc.GetLogger().Info("Received configuration update",
+		zap.String("topic", topic),
+		zap.Int("size", len(payload)))
+
+	// Unmarshal the MQTT message envelope
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		mc.GetLogger().Error("Failed to unmarshal config update envelope", zap.Error(err))
+		return err
+	}
+
+	// Unmarshal the config update payload
+	var update struct {
+		ConfigKey   string      `json:"config_key"`
+		ConfigValue interface{} `json:"config_value"`
+	}
+	if err := msg.UnmarshalPayload(&update); err != nil {
+		mc.GetLogger().Error("Failed to unmarshal config update payload", zap.Error(err))
+		return err
+	}
+
+	// Reload configuration from database
+	if mc.configLoader == nil {
+		mc.GetLogger().Warn("Config loader not set, cannot reload configuration")
+		return fmt.Errorf("config loader not set")
+	}
+
+	ctx := context.Background()
+	coordConfig, err := mc.configLoader.LoadCoordinatorConfig(ctx, "message-coordinator")
+	if err != nil {
+		mc.GetLogger().Error("Failed to reload configuration", zap.Error(err))
+		return err
+	}
+
+	// Parse updated configuration
+	brokerURL, err := coordConfig.GetString("broker_url", "localhost")
+	if err != nil {
+		mc.GetLogger().Error("Failed to parse broker_url", zap.Error(err))
+		return err
+	}
+	brokerPort, err := coordConfig.GetInt("broker_port", 1883)
+	if err != nil {
+		mc.GetLogger().Error("Failed to parse broker_port", zap.Error(err))
+		return err
+	}
+	monitorInterval, err := coordConfig.GetDuration("monitor_interval", 30*time.Second)
+	if err != nil {
+		mc.GetLogger().Error("Failed to parse monitor_interval", zap.Error(err))
+		return err
+	}
+	maxReconnectAttempts, err := coordConfig.GetInt("max_reconnect_attempts", 5)
+	if err != nil {
+		mc.GetLogger().Error("Failed to parse max_reconnect_attempts", zap.Error(err))
+		return err
+	}
+
+	// Update configuration (thread-safe)
+	mc.mu.Lock()
+	mc.config.BrokerURL = brokerURL
+	mc.config.BrokerPort = brokerPort
+	mc.config.MonitorInterval = monitorInterval
+	mc.config.MaxReconnectAttempts = maxReconnectAttempts
+	mc.mu.Unlock()
+
+	mc.GetLogger().Info("Configuration reloaded successfully",
+		zap.String("config_key", update.ConfigKey),
+		zap.String("broker_url", brokerURL),
+		zap.Int("broker_port", brokerPort),
+		zap.Duration("monitor_interval", monitorInterval),
+		zap.Int("max_reconnect_attempts", maxReconnectAttempts))
+
+	return nil
 }
 
 // Name returns the coordinator name.

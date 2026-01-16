@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/config"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/engines/ascom"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 	"go.uber.org/zap"
@@ -18,9 +20,11 @@ import (
 // It provides multi-tenant telescope management with RBAC integration.
 type TelescopeCoordinator struct {
 	*BaseCoordinator
-	ascomEngine *ascom.Engine
-	db          *pgxpool.Pool
-	config      *TelescopeConfig
+	ascomEngine  *ascom.Engine
+	db           *pgxpool.Pool
+	config       *TelescopeConfig
+	configLoader *config.Loader
+	mu           sync.RWMutex
 }
 
 // TelescopeConfig holds configuration for the telescope coordinator.
@@ -138,6 +142,12 @@ func (c *TelescopeCoordinator) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to subscribe to %s: %w", topic, err)
 		}
 		c.GetLogger().Info("Subscribed to topic", zap.String("topic", topic))
+	}
+
+	// Subscribe to configuration update topic
+	if err := c.subscribeConfigTopic(); err != nil {
+		c.GetLogger().Error("Failed to subscribe to config topic", zap.Error(err))
+		return fmt.Errorf("failed to subscribe to config topic: %w", err)
 	}
 
 	// Start health status publishing
@@ -1112,4 +1122,57 @@ func (c *TelescopeCoordinator) publishResponse(subtopic string, payload interfac
 			zap.String("topic", topic),
 			zap.Error(err))
 	}
+}
+
+// SetConfigLoader sets the configuration loader for runtime config updates.
+func (c *TelescopeCoordinator) SetConfigLoader(loader *config.Loader) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.configLoader = loader
+}
+
+// subscribeConfigTopic subscribes to configuration update messages.
+func (c *TelescopeCoordinator) subscribeConfigTopic() error {
+	topic := "bigskies/coordinator/config/update/telescope-coordinator"
+	return c.GetMQTTClient().Subscribe(topic, 1, c.handleConfigUpdateWrapper)
+}
+
+// handleConfigUpdateWrapper wraps handleConfigUpdate to satisfy MessageHandler signature.
+func (c *TelescopeCoordinator) handleConfigUpdateWrapper(topic string, payload []byte) error {
+	c.handleCoordinatorConfigUpdate(context.Background(), payload)
+	return nil
+}
+
+// handleCoordinatorConfigUpdate processes runtime configuration update messages.
+func (c *TelescopeCoordinator) handleCoordinatorConfigUpdate(ctx context.Context, payload []byte) {
+	c.GetLogger().Info("Received coordinator configuration update")
+
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		c.GetLogger().Error("Failed to unmarshal config update envelope", zap.Error(err))
+		return
+	}
+
+	if c.configLoader == nil {
+		c.GetLogger().Warn("Config loader not set")
+		return
+	}
+
+	coordConfig, err := c.configLoader.LoadCoordinatorConfig(ctx, "telescope-coordinator")
+	if err != nil {
+		c.GetLogger().Error("Failed to reload configuration", zap.Error(err))
+		return
+	}
+
+	discoveryPort, _ := coordConfig.GetInt("discovery_port", 32227)
+	healthCheckInterval, _ := coordConfig.GetDuration("health_check_interval", 30*time.Second)
+
+	c.mu.Lock()
+	c.config.DiscoveryPort = discoveryPort
+	c.config.HealthCheckInterval = healthCheckInterval
+	c.mu.Unlock()
+
+	c.GetLogger().Info("Coordinator configuration reloaded",
+		zap.Int("discovery_port", discoveryPort),
+		zap.Duration("health_check_interval", healthCheckInterval))
 }

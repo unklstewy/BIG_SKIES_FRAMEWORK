@@ -3,10 +3,12 @@ package coordinators
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/config"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/healthcheck"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 	"go.uber.org/zap"
@@ -15,8 +17,10 @@ import (
 // ApplicationCoordinator tracks and monitors application microservices.
 type ApplicationCoordinator struct {
 	*BaseCoordinator
-	config   *ApplicationCoordinatorConfig
-	registry *ServiceRegistry
+	config       *ApplicationCoordinatorConfig
+	registry     *ServiceRegistry
+	configLoader *config.Loader // Database configuration loader
+	mu           sync.RWMutex
 }
 
 // ApplicationCoordinatorConfig holds configuration for the application coordinator.
@@ -94,6 +98,11 @@ func (ac *ApplicationCoordinator) Start(ctx context.Context) error {
 	// Subscribe to service registration topics
 	if err := ac.subscribeServiceTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to service topics: %w", err)
+	}
+
+	// Subscribe to configuration update topic
+	if err := ac.subscribeConfigTopic(); err != nil {
+		return fmt.Errorf("failed to subscribe to config topic: %w", err)
 	}
 
 	// Start registry monitoring
@@ -305,6 +314,70 @@ func (ac *ApplicationCoordinator) Check(ctx context.Context) *healthcheck.Result
 		Timestamp:     time.Now(),
 		Details:       details,
 	}
+}
+
+// SetConfigLoader sets the configuration loader for runtime config updates.
+func (ac *ApplicationCoordinator) SetConfigLoader(loader *config.Loader) {
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	ac.configLoader = loader
+}
+
+// subscribeConfigTopic subscribes to configuration update messages.
+func (ac *ApplicationCoordinator) subscribeConfigTopic() error {
+	topic := "bigskies/coordinator/config/update/application-coordinator"
+	return ac.GetMQTTClient().Subscribe(topic, 1, ac.handleConfigUpdate)
+}
+
+// handleConfigUpdate processes runtime configuration update messages.
+func (ac *ApplicationCoordinator) handleConfigUpdate(topic string, payload []byte) error {
+	ac.GetLogger().Info("Received configuration update",
+		zap.String("topic", topic),
+		zap.Int("size", len(payload)))
+
+	// Unmarshal the MQTT message envelope
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		ac.GetLogger().Error("Failed to unmarshal config update envelope", zap.Error(err))
+		return err
+	}
+
+	// Reload configuration from database
+	if ac.configLoader == nil {
+		ac.GetLogger().Warn("Config loader not set, cannot reload configuration")
+		return fmt.Errorf("config loader not set")
+	}
+
+	ctx := context.Background()
+	coordConfig, err := ac.configLoader.LoadCoordinatorConfig(ctx, "application-coordinator")
+	if err != nil {
+		ac.GetLogger().Error("Failed to reload configuration", zap.Error(err))
+		return err
+	}
+
+	// Parse updated configuration
+	registryCheckInterval, err := coordConfig.GetDuration("registry_check_interval", 60*time.Second)
+	if err != nil {
+		ac.GetLogger().Error("Failed to parse registry_check_interval", zap.Error(err))
+		return err
+	}
+	serviceTimeout, err := coordConfig.GetDuration("service_timeout", 180*time.Second)
+	if err != nil {
+		ac.GetLogger().Error("Failed to parse service_timeout", zap.Error(err))
+		return err
+	}
+
+	// Update configuration (thread-safe)
+	ac.mu.Lock()
+	ac.config.RegistryCheckInterval = registryCheckInterval
+	ac.config.ServiceTimeout = serviceTimeout
+	ac.mu.Unlock()
+
+	ac.GetLogger().Info("Configuration reloaded successfully",
+		zap.Duration("registry_check_interval", registryCheckInterval),
+		zap.Duration("service_timeout", serviceTimeout))
+
+	return nil
 }
 
 // Name returns the coordinator name.

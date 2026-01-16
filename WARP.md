@@ -10,20 +10,28 @@ BIG_SKIES_FRAMEWORK is a plugin-extensible backend framework for telescope opera
 
 ## Architecture
 
-The system follows a coordinator-based architecture defined in `docs/architecture/big_skies_architecture_gojs.json`. Key coordinators:
+**IMPORTANT**: Always consult `docs/architecture/COORDINATOR_ENGINE_ARCHITECTURE.md` for comprehensive architectural guidance on:
+- Coordinator vs Engine responsibilities and separation of concerns
+- Communication patterns and MQTT topic structures
+- Best practices and anti-patterns
+- Database-driven configuration principles
+- Health check implementation requirements
+
+The system follows a coordinator-based architecture with the following key coordinators:
 
 - **message-coordinator**: Message bus and health monitoring
-- **application-svc-coordinator**: Tracks and monitors microservices
+- **application-coordinator**: Tracks and monitors microservices
 - **security-coordinator**: Manages security model, roles, groups, accounts, mTLS/SSL (Let's Encrypt)
 - **telescope-coordinator**: ASCOM-Alpaca interface and telescope configurations
 - **plugin-coordinator**: Plugin lifecycle management (install, verify, version, update, remove by GUID)
-- **ui-element-coordinator**: UI provisioning from plugin APIs
-- **data-store-coordinator**: PostgreSQL database management
+- **ui-element-coordinator**: UI provisioning from plugin APIs with multi-framework support
+- **datastore-coordinator**: PostgreSQL database management
 
-Each coordinator has:
-- Health check engine (API, reporter, diagnostics)
-- Setup wizard API for configuration
-- Specific service engines for domain logic
+Each coordinator:
+- Owns a specific domain and subscribes to domain-specific MQTT topics
+- Delegates technical operations to specialized engines
+- Reports health status periodically
+- Loads configuration from database (except bootstrap config)
 
 ## Development Requirements
 

@@ -3,10 +3,12 @@ package coordinators
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/config"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/healthcheck"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 	"go.uber.org/zap"
@@ -15,8 +17,10 @@ import (
 // UIElementCoordinator manages UI element tracking and provisioning from plugins.
 type UIElementCoordinator struct {
 	*BaseCoordinator
-	config   *UIElementCoordinatorConfig
-	registry *UIElementRegistry
+	config       *UIElementCoordinatorConfig
+	registry     *UIElementRegistry
+	configLoader *config.Loader
+	mu           sync.RWMutex
 }
 
 // UIElementCoordinatorConfig holds configuration for the UI element coordinator.
@@ -190,6 +194,11 @@ func (uec *UIElementCoordinator) Start(ctx context.Context) error {
 	// Subscribe to UI element topics
 	if err := uec.subscribeUITopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to UI topics: %w", err)
+	}
+
+	// Subscribe to configuration update topic
+	if err := uec.subscribeConfigTopic(); err != nil {
+		return fmt.Errorf("failed to subscribe to config topic: %w", err)
 	}
 
 	// Start UI API scanner
@@ -512,6 +521,54 @@ func (uec *UIElementCoordinator) Check(ctx context.Context) *healthcheck.Result 
 		Timestamp:     time.Now(),
 		Details:       details,
 	}
+}
+
+// SetConfigLoader sets the configuration loader for runtime config updates.
+func (uec *UIElementCoordinator) SetConfigLoader(loader *config.Loader) {
+	uec.mu.Lock()
+	defer uec.mu.Unlock()
+	uec.configLoader = loader
+}
+
+// subscribeConfigTopic subscribes to configuration update messages.
+func (uec *UIElementCoordinator) subscribeConfigTopic() error {
+	topic := "bigskies/coordinator/config/update/uielement-coordinator"
+	return uec.GetMQTTClient().Subscribe(topic, 1, uec.handleConfigUpdate)
+}
+
+// handleConfigUpdate processes runtime configuration update messages.
+func (uec *UIElementCoordinator) handleConfigUpdate(topic string, payload []byte) error {
+	uec.GetLogger().Info("Received configuration update",
+		zap.String("topic", topic))
+
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		uec.GetLogger().Error("Failed to unmarshal config update envelope", zap.Error(err))
+		return err
+	}
+
+	if uec.configLoader == nil {
+		uec.GetLogger().Warn("Config loader not set")
+		return fmt.Errorf("config loader not set")
+	}
+
+	ctx := context.Background()
+	coordConfig, err := uec.configLoader.LoadCoordinatorConfig(ctx, "uielement-coordinator")
+	if err != nil {
+		uec.GetLogger().Error("Failed to reload configuration", zap.Error(err))
+		return err
+	}
+
+	scanInterval, _ := coordConfig.GetDuration("scan_interval", 600*time.Second)
+
+	uec.mu.Lock()
+	uec.config.ScanInterval = scanInterval
+	uec.mu.Unlock()
+
+	uec.GetLogger().Info("Configuration reloaded",
+		zap.Duration("scan_interval", scanInterval))
+
+	return nil
 }
 
 // Name returns the coordinator name.

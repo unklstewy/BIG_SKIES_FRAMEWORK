@@ -32,31 +32,34 @@ import (
 // - Integrates with security-coordinator for authentication/authorization
 type ASCOMCoordinator struct {
 	*BaseCoordinator
-	ascomEngine      *ascom.Engine                     // ASCOM protocol engine
-	bridge           *ascom.Bridge                     // MQTT bridge for device communication
-	db               *pgxpool.Pool                     // Database connection
-	config           *ASCOMConfig                      // Coordinator configuration
-	httpServer       *http.Server                      // HTTP server for ASCOM API
-	discoveryService *ascomserver.DiscoveryService     // UDP discovery service
-	deviceRegistry   map[string]*ASCOMDevice           // Registered ASCOM devices
-	serverTxnCounter atomic.Uint32                     // Server transaction ID counter
+	ascomEngine        *ascom.Engine                     // ASCOM protocol engine
+	bridge             *ascom.Bridge                     // MQTT bridge for device communication
+	db                 *pgxpool.Pool                     // Database connection
+	config             *ASCOMConfig                      // Coordinator configuration
+	httpServer         *http.Server                      // HTTP server for ASCOM API
+	discoveryService   *ascomserver.DiscoveryService     // UDP discovery service
+	deviceRegistry     map[string]*ASCOMDevice           // Registered ASCOM devices
+	serverTxnCounter   atomic.Uint32                     // Server transaction ID counter
+	securityMiddleware *ascom.SecurityMiddleware         // JWT authentication and authorization
+	sessionManager     *ascom.SessionManager             // ASCOM client session tracking
 }
 
 // ASCOMConfig holds configuration for the ASCOM coordinator.
 type ASCOMConfig struct {
 	BaseConfig
-	DatabaseURL           string        `json:"database_url"`
-	HTTPListenAddress     string        `json:"http_listen_address"`      // Default: "0.0.0.0:11111"
-	DiscoveryPort         int           `json:"discovery_port"`           // Default: 32227
-	HealthCheckInterval   time.Duration `json:"health_check_interval"`
-	ReadTimeout           time.Duration `json:"read_timeout"`
-	WriteTimeout          time.Duration `json:"write_timeout"`
-	IdleTimeout           time.Duration `json:"idle_timeout"`
-	EnableCORS            bool          `json:"enable_cors"`              // Allow cross-origin requests
-	MaxRequestSize        int64         `json:"max_request_size"`         // Maximum request body size
-	ServerName            string        `json:"server_name"`              // ASCOM server name
-	ServerDescription     string        `json:"server_description"`
-	Manufacturer          string        `json:"manufacturer"`
+	DatabaseURL           string              `json:"database_url"`
+	HTTPListenAddress     string              `json:"http_listen_address"`      // Default: "0.0.0.0:11111"
+	DiscoveryPort         int                 `json:"discovery_port"`           // Default: 32227
+	HealthCheckInterval   time.Duration       `json:"health_check_interval"`
+	ReadTimeout           time.Duration       `json:"read_timeout"`
+	WriteTimeout          time.Duration       `json:"write_timeout"`
+	IdleTimeout           time.Duration       `json:"idle_timeout"`
+	EnableCORS            bool                `json:"enable_cors"`              // Allow cross-origin requests
+	MaxRequestSize        int64               `json:"max_request_size"`         // Maximum request body size
+	ServerName            string              `json:"server_name"`              // ASCOM server name
+	ServerDescription     string              `json:"server_description"`
+	Manufacturer          string              `json:"manufacturer"`
+	SecurityConfig        *ascom.SecurityConfig `json:"security_config"`        // Security/authentication settings
 }
 
 // ASCOMDevice represents an ASCOM device configuration stored in the database.
@@ -114,6 +117,14 @@ func NewASCOMCoordinator(config *ASCOMConfig, logger *zap.Logger) (*ASCOMCoordin
 		config.Manufacturer = "BigSkies"
 	}
 
+	// Set security config defaults
+	if config.SecurityConfig == nil {
+		config.SecurityConfig = &ascom.SecurityConfig{
+			RequireAuth:        true,
+			SessionTimeout:     1 * time.Hour,
+		}
+	}
+
 	// Connect to database
 	dbConfig, err := pgxpool.ParseConfig(config.DatabaseURL)
 	if err != nil {
@@ -158,17 +169,53 @@ func NewASCOMCoordinator(config *ASCOMConfig, logger *zap.Logger) (*ASCOMCoordin
 		return nil, fmt.Errorf("failed to create MQTT bridge: %w", err)
 	}
 
+	// Initialize security middleware
+	securityMiddleware, err := ascom.NewSecurityMiddleware(
+		mqttClient,
+		db,
+		config.SecurityConfig,
+		logger,
+	)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create security middleware: %w", err)
+	}
+
+	// Initialize session manager
+	sessionManager, err := ascom.NewSessionManager(
+		db,
+		config.SecurityConfig.SessionTimeout,
+		logger,
+	)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create session manager: %w", err)
+	}
+
 	coord := &ASCOMCoordinator{
-		BaseCoordinator:  baseCoord,
-		ascomEngine:      ascomEngine,
-		bridge:           bridge,
-		db:               db,
-		config:           config,
-		deviceRegistry:   make(map[string]*ASCOMDevice),
+		BaseCoordinator:    baseCoord,
+		ascomEngine:        ascomEngine,
+		bridge:             bridge,
+		db:                 db,
+		config:             config,
+		deviceRegistry:     make(map[string]*ASCOMDevice),
+		securityMiddleware: securityMiddleware,
+		sessionManager:     sessionManager,
 	}
 
 	// Register health checks
 	coord.RegisterHealthCheck(ascomEngine)
+
+	// Register security middleware shutdown
+	coord.RegisterShutdownFunc(func(ctx context.Context) error {
+		securityMiddleware.Stop()
+		return nil
+	})
+
+	// Register session manager shutdown
+	coord.RegisterShutdownFunc(func(ctx context.Context) error {
+		return sessionManager.Stop()
+	})
 
 	// Register bridge shutdown
 	coord.RegisterShutdownFunc(func(ctx context.Context) error {
@@ -223,6 +270,11 @@ func (c *ASCOMCoordinator) Start(ctx context.Context) error {
 
 	// Start ASCOM engine
 	c.ascomEngine.Start(ctx)
+
+	// Start session manager
+	if err := c.sessionManager.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start session manager: %w", err)
+	}
 
 	// Start MQTT bridge
 	if err := c.bridge.Start(ctx); err != nil {
@@ -313,6 +365,11 @@ func (c *ASCOMCoordinator) setupRouter() *gin.Engine {
 	if c.config.EnableCORS {
 		router.Use(c.corsMiddleware())
 	}
+
+	// Add security middleware for authentication and authorization
+	// Applied to all API routes (excluding management endpoints)
+	router.Use(c.securityMiddleware.AuthenticateRequest())
+	router.Use(c.securityMiddleware.AuthorizeTelescope())
 
 	// Management API endpoints (ASCOM Alpaca standard)
 	management := router.Group("/management")

@@ -3,10 +3,12 @@ package coordinators
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/config"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/healthcheck"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 	"go.uber.org/zap"
@@ -15,8 +17,10 @@ import (
 // PluginCoordinator manages plugin lifecycle operations.
 type PluginCoordinator struct {
 	*BaseCoordinator
-	config   *PluginCoordinatorConfig
-	registry *PluginRegistry
+	config       *PluginCoordinatorConfig
+	registry     *PluginRegistry
+	configLoader *config.Loader
+	mu           sync.RWMutex
 }
 
 // PluginCoordinatorConfig holds configuration for the plugin coordinator.
@@ -113,6 +117,11 @@ func (pc *PluginCoordinator) Start(ctx context.Context) error {
 	// Subscribe to plugin command topics
 	if err := pc.subscribePluginTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to plugin topics: %w", err)
+	}
+
+	// Subscribe to configuration update topic
+	if err := pc.subscribeConfigTopic(); err != nil {
+		return fmt.Errorf("failed to subscribe to config topic: %w", err)
 	}
 
 	// Start plugin scanner
@@ -315,6 +324,57 @@ func (pc *PluginCoordinator) Check(ctx context.Context) *healthcheck.Result {
 		Timestamp:     time.Now(),
 		Details:       details,
 	}
+}
+
+// SetConfigLoader sets the configuration loader for runtime config updates.
+func (pc *PluginCoordinator) SetConfigLoader(loader *config.Loader) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.configLoader = loader
+}
+
+// subscribeConfigTopic subscribes to configuration update messages.
+func (pc *PluginCoordinator) subscribeConfigTopic() error {
+	topic := "bigskies/coordinator/config/update/plugin-coordinator"
+	return pc.GetMQTTClient().Subscribe(topic, 1, pc.handleConfigUpdate)
+}
+
+// handleConfigUpdate processes runtime configuration update messages.
+func (pc *PluginCoordinator) handleConfigUpdate(topic string, payload []byte) error {
+	pc.GetLogger().Info("Received configuration update",
+		zap.String("topic", topic))
+
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		pc.GetLogger().Error("Failed to unmarshal config update envelope", zap.Error(err))
+		return err
+	}
+
+	if pc.configLoader == nil {
+		pc.GetLogger().Warn("Config loader not set")
+		return fmt.Errorf("config loader not set")
+	}
+
+	ctx := context.Background()
+	coordConfig, err := pc.configLoader.LoadCoordinatorConfig(ctx, "plugin-coordinator")
+	if err != nil {
+		pc.GetLogger().Error("Failed to reload configuration", zap.Error(err))
+		return err
+	}
+
+	pluginDir, _ := coordConfig.GetString("plugin_dir", "/var/lib/bigskies/plugins")
+	scanInterval, _ := coordConfig.GetDuration("scan_interval", 300*time.Second)
+
+	pc.mu.Lock()
+	pc.config.PluginDir = pluginDir
+	pc.config.ScanInterval = scanInterval
+	pc.mu.Unlock()
+
+	pc.GetLogger().Info("Configuration reloaded",
+		zap.String("plugin_dir", pluginDir),
+		zap.Duration("scan_interval", scanInterval))
+
+	return nil
 }
 
 // Name returns the coordinator name.
