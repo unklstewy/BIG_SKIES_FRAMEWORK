@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // ManagementAPI contains handlers for ASCOM Alpaca management endpoints.
@@ -194,7 +195,7 @@ func (m *ManagementAPI) handleConfiguredDevices(c *gin.Context) {
 	}
 
 	m.server.logger.Debug("Returning configured devices",
-		m.server.logger.Sugar().String("count", string(rune(len(devices)+'0'))))
+		zap.Int("count", len(devices)))
 
 	// Return the list of configured devices
 	c.JSON(http.StatusOK, NewSuccessResponse(

@@ -10,7 +10,6 @@ package ascomserver
 import (
 	"time"
 
-	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/models"
 	"go.uber.org/zap"
 )
 
