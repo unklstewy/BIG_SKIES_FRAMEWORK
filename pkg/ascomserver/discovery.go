@@ -28,10 +28,10 @@ func NewDiscoveryService(port, apiPort int, logger *zap.Logger) *DiscoveryServic
 	}
 
 	return &DiscoveryService{
-		port:   port,
+		port:    port,
 		apiPort: apiPort,
-		logger: logger.With(zap.String("component", "discovery")),
-		stopCh: make(chan struct{}),
+		logger:  logger.With(zap.String("component", "discovery")),
+		stopCh:  make(chan struct{}),
 	}
 }
 

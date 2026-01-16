@@ -147,6 +147,152 @@ bigskies/coordinator/{coordinator_name}/{action}/{resource}[/{detail}]
 
 ## Coordinators
 
+### 0. Bootstrap Coordinator (`cmd/bootstrap-coordinator/main.go`)
+
+**Domain**: Credential management and database initialization
+
+**Purpose**: Provides database credentials to all coordinators and ensures database schema is properly initialized before coordinator startup.
+
+**Engines**: Uses bootstrap package (`internal/bootstrap/`)
+- `credentials.go`: Loads credentials from `.pgpass` file
+- `migrations.go`: Runs database schema migrations
+- (Note: Process manager removed for container architecture)
+
+**Responsibilities**:
+- Load database credentials from shared volume (`.pgpass` file)
+- Run database migrations to initialize/update schema
+- Publish credentials to coordinators via MQTT (base64-encoded)
+- Listen for credential requests and republish
+- Stay running to support coordinator restarts
+
+**Container Architecture**:
+```
+┌────────────────────────────────┐
+│ Bootstrap Coordinator          │
+│ (First to start)              │
+│                               │
+│ 1. Load /shared/secrets/.pgpass│
+│ 2. Run migrations              │
+│ 3. Publish credentials via MQTT│
+│ 4. Periodic republish (30s)    │
+└────────────────────────────────┘
+         │
+         │ MQTT Topics
+         ├─► bigskies/coordinator/bootstrap/credentials (publish)
+         └─◄ bigskies/coordinator/bootstrap/request (subscribe)
+         ↓
+┌────────────────────────────────┐
+│ Other Coordinators             │
+│                               │
+│ 1. Subscribe to credentials   │
+│ 2. Decode base64 path         │
+│ 3. Load from shared volume    │
+│ 4. Connect to database        │
+│ 5. Load config from DB        │
+└────────────────────────────────┘
+```
+
+**Shared Volume Pattern**:
+- All coordinators mount shared volume at `/shared/secrets`
+- Volume type: tmpfs (memory-only, no disk persistence)
+- Permissions: 0600, uid=1000
+- Contains: `.pgpass` file with PostgreSQL credentials
+
+**MQTT Topics**:
+- Publish: `bigskies/coordinator/bootstrap/credentials`
+  - Payload: `{"pgpass_path": "<base64>", "version": "1.0"}`
+  - Frequency: On startup, every 30 seconds, and on request
+- Subscribe: `bigskies/coordinator/bootstrap/request`
+  - Allows coordinators to request credentials if missed
+
+**Startup Sequence**:
+1. **Infrastructure**: PostgreSQL + MQTT broker start (healthchecks pass)
+2. **Bootstrap**: Loads credentials, runs migrations, publishes to MQTT
+3. **DataStore**: Waits for credentials, connects to database
+4. **Security + Message**: Wait for credentials and datastore
+5. **Application**: Waits for message and security
+6. **Plugins/Telescope/UIElement**: Wait for application
+
+**Command-Line Flags**:
+- `--config`: Path to bootstrap.yaml (default: `configs/bootstrap.yaml`)
+- `--pgpass`: Path to .pgpass file (default: `/shared/secrets/.pgpass`)
+- `--log-level`: Logging level (default: `info`)
+- `--validate`: Validate config and credentials only, don't run
+- `--skip-migrations`: Skip database migrations (use with caution)
+- `--publish-only`: Only publish credentials, skip migrations
+- `--version`: Show version and exit
+
+**Configuration** (File-based: `configs/bootstrap.yaml`):
+```yaml
+database:
+  host: postgres
+  port: 5432
+  database: bigskies
+  sslmode: disable
+  max_connections: 10
+  connection_timeout: 10s
+
+mqtt:
+  broker_url: tcp://mqtt-broker
+  broker_port: 1883
+  client_id: bootstrap-coordinator
+  reconnect_interval: 5s
+  max_reconnect_attempts: 10
+
+migrations:
+  directory: configs/sql
+  migrations:
+    - name: coordinator_config_schema
+      file: coordinator_config_schema.sql
+      version: "1.0.0"
+    # ... additional migrations
+```
+
+**BaseCoordinator Integration**:
+All coordinators inherit `WaitForCredentials()` method from BaseCoordinator:
+
+```go
+// In coordinator main.go
+ctx := context.Background()
+creds, err := baseCoord.WaitForCredentials(ctx, 30*time.Second)
+if err != nil {
+    log.Fatal("Failed to load credentials:", err)
+}
+
+dbURL := creds.ConnectionString()
+db, err := pgxpool.New(ctx, dbURL)
+```
+
+**Fallback Behavior**:
+- If credentials not received within timeout, coordinator fails and Docker retries
+- Eventually succeeds when bootstrap coordinator is available
+- For development, can bypass with `DATABASE_URL` environment variable
+
+**Security Considerations**:
+- Credentials encoded in base64 (minor obscurity, NOT encryption)
+- `.pgpass` file stored in tmpfs (memory-only, no disk persistence)
+- Production: Enable MQTT authentication and PostgreSQL SSL
+- Credential rotation: Update `.pgpass`, restart bootstrap, all coordinators update
+
+**Docker Compose Configuration**:
+- Service name: `bootstrap-coordinator`
+- Depends on: `postgres`, `mqtt-broker` (with health checks)
+- Volumes: `shared_secrets:/shared/secrets:ro`, `configs:/app/configs:ro`
+- Restart policy: `unless-stopped`
+
+**Separation of Concerns**:
+- ✅ Loads and distributes credentials
+- ✅ Runs database migrations
+- ✅ Publishes credentials via MQTT
+- ✅ Handles bootstrap lifecycle
+- ❌ Does NOT manage coordinators as processes (container architecture)
+- ❌ Does NOT implement business logic
+- ❌ Does NOT connect to database after migrations (only for migrations)
+
+**See Also**: `docs/setup/BOOTSTRAP_SETUP.md` for detailed setup instructions
+
+---
+
 ### 1. Message Coordinator (`message_coordinator.go`)
 
 **Domain**: Message bus infrastructure and health monitoring

@@ -1,0 +1,54 @@
+# BIG SKIES Framework - Application Dockerfile
+FROM golang:1.25-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags="-w -s" \
+    -o application-coordinator \
+    ./cmd/application-coordinator
+
+# Runtime stage
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata
+
+# Create app user
+RUN addgroup -g 1000 bigskies && \
+    adduser -D -u 1000 -G bigskies bigskies
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/application-coordinator /app/
+
+# Copy configs (will be overridden by volume mount)
+COPY configs /app/configs
+
+# Change ownership
+RUN chown -R bigskies:bigskies /app
+
+# Switch to app user
+USER bigskies
+
+# Expose no ports (coordinators use MQTT)
+
+# Set entrypoint
+ENTRYPOINT ["/app/application-coordinator"]
+
+# Default arguments (database URL provided via MQTT)
+CMD []

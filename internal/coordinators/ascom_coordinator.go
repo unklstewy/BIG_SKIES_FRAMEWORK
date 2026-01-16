@@ -32,51 +32,51 @@ import (
 // - Integrates with security-coordinator for authentication/authorization
 type ASCOMCoordinator struct {
 	*BaseCoordinator
-	ascomEngine        *ascom.Engine                     // ASCOM protocol engine
-	bridge             *ascom.Bridge                     // MQTT bridge for device communication
-	db                 *pgxpool.Pool                     // Database connection
-	config             *ASCOMConfig                      // Coordinator configuration
-	httpServer         *http.Server                      // HTTP server for ASCOM API
-	discoveryService   *ascomserver.DiscoveryService     // UDP discovery service
-	deviceRegistry     map[string]*ASCOMDevice           // Registered ASCOM devices
-	serverTxnCounter   atomic.Uint32                     // Server transaction ID counter
-	securityMiddleware *ascom.SecurityMiddleware         // JWT authentication and authorization
-	sessionManager     *ascom.SessionManager             // ASCOM client session tracking
+	ascomEngine        *ascom.Engine                 // ASCOM protocol engine
+	bridge             *ascom.Bridge                 // MQTT bridge for device communication
+	db                 *pgxpool.Pool                 // Database connection
+	config             *ASCOMConfig                  // Coordinator configuration
+	httpServer         *http.Server                  // HTTP server for ASCOM API
+	discoveryService   *ascomserver.DiscoveryService // UDP discovery service
+	deviceRegistry     map[string]*ASCOMDevice       // Registered ASCOM devices
+	serverTxnCounter   atomic.Uint32                 // Server transaction ID counter
+	securityMiddleware *ascom.SecurityMiddleware     // JWT authentication and authorization
+	sessionManager     *ascom.SessionManager         // ASCOM client session tracking
 }
 
 // ASCOMConfig holds configuration for the ASCOM coordinator.
 type ASCOMConfig struct {
 	BaseConfig
-	DatabaseURL           string              `json:"database_url"`
-	HTTPListenAddress     string              `json:"http_listen_address"`      // Default: "0.0.0.0:11111"
-	DiscoveryPort         int                 `json:"discovery_port"`           // Default: 32227
-	HealthCheckInterval   time.Duration       `json:"health_check_interval"`
-	ReadTimeout           time.Duration       `json:"read_timeout"`
-	WriteTimeout          time.Duration       `json:"write_timeout"`
-	IdleTimeout           time.Duration       `json:"idle_timeout"`
-	EnableCORS            bool                `json:"enable_cors"`              // Allow cross-origin requests
-	MaxRequestSize        int64               `json:"max_request_size"`         // Maximum request body size
-	ServerName            string              `json:"server_name"`              // ASCOM server name
-	ServerDescription     string              `json:"server_description"`
-	Manufacturer          string              `json:"manufacturer"`
-	SecurityConfig        *ascom.SecurityConfig `json:"security_config"`        // Security/authentication settings
+	DatabaseURL         string                `json:"database_url"`
+	HTTPListenAddress   string                `json:"http_listen_address"` // Default: "0.0.0.0:11111"
+	DiscoveryPort       int                   `json:"discovery_port"`      // Default: 32227
+	HealthCheckInterval time.Duration         `json:"health_check_interval"`
+	ReadTimeout         time.Duration         `json:"read_timeout"`
+	WriteTimeout        time.Duration         `json:"write_timeout"`
+	IdleTimeout         time.Duration         `json:"idle_timeout"`
+	EnableCORS          bool                  `json:"enable_cors"`      // Allow cross-origin requests
+	MaxRequestSize      int64                 `json:"max_request_size"` // Maximum request body size
+	ServerName          string                `json:"server_name"`      // ASCOM server name
+	ServerDescription   string                `json:"server_description"`
+	Manufacturer        string                `json:"manufacturer"`
+	SecurityConfig      *ascom.SecurityConfig `json:"security_config"` // Security/authentication settings
 }
 
 // ASCOMDevice represents an ASCOM device configuration stored in the database.
 type ASCOMDevice struct {
-	ID               string                 `json:"id"`                // UUID
-	DeviceType       string                 `json:"device_type"`       // telescope, camera, dome, etc.
-	DeviceNumber     int                    `json:"device_number"`     // Device instance number
-	Name             string                 `json:"name"`
-	Description      string                 `json:"description"`
-	UniqueID         string                 `json:"unique_id"`         // ASCOM unique device ID
-	BackendMode      string                 `json:"backend_mode"`      // mqtt, network, hybrid
-	BackendConfig    map[string]interface{} `json:"backend_config"`    // Backend-specific configuration
-	OrganizationID   string                 `json:"organization_id"`   // Multi-tenant isolation
-	CreatedBy        string                 `json:"created_by"`        // User who created device
-	CreatedAt        time.Time              `json:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at"`
-	Enabled          bool                   `json:"enabled"`           // Whether device is active
+	ID             string                 `json:"id"`            // UUID
+	DeviceType     string                 `json:"device_type"`   // telescope, camera, dome, etc.
+	DeviceNumber   int                    `json:"device_number"` // Device instance number
+	Name           string                 `json:"name"`
+	Description    string                 `json:"description"`
+	UniqueID       string                 `json:"unique_id"`       // ASCOM unique device ID
+	BackendMode    string                 `json:"backend_mode"`    // mqtt, network, hybrid
+	BackendConfig  map[string]interface{} `json:"backend_config"`  // Backend-specific configuration
+	OrganizationID string                 `json:"organization_id"` // Multi-tenant isolation
+	CreatedBy      string                 `json:"created_by"`      // User who created device
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
+	Enabled        bool                   `json:"enabled"` // Whether device is active
 }
 
 // NewASCOMCoordinator creates a new ASCOM coordinator instance.
@@ -120,8 +120,8 @@ func NewASCOMCoordinator(config *ASCOMConfig, logger *zap.Logger) (*ASCOMCoordin
 	// Set security config defaults
 	if config.SecurityConfig == nil {
 		config.SecurityConfig = &ascom.SecurityConfig{
-			RequireAuth:        true,
-			SessionTimeout:     1 * time.Hour,
+			RequireAuth:    true,
+			SessionTimeout: 1 * time.Hour,
 		}
 	}
 
@@ -529,19 +529,19 @@ func (c *ASCOMCoordinator) handleReloadDevices(ctx context.Context, payload []by
 // HTTP endpoint handlers for ASCOM management API
 func (c *ASCOMCoordinator) handleAPIVersions(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
-		"Value":                []int{1},
-		"ErrorNumber":          0,
-		"ErrorMessage":         "",
+		"Value":        []int{1},
+		"ErrorNumber":  0,
+		"ErrorMessage": "",
 	})
 }
 
 func (c *ASCOMCoordinator) handleServerDescription(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"Value": gin.H{
-			"ServerName":        c.config.ServerName,
-			"Manufacturer":      c.config.Manufacturer,
+			"ServerName":          c.config.ServerName,
+			"Manufacturer":        c.config.Manufacturer,
 			"ManufacturerVersion": "1.0.0",
-			"Location":          c.config.HTTPListenAddress,
+			"Location":            c.config.HTTPListenAddress,
 		},
 		"ErrorNumber":  0,
 		"ErrorMessage": "",
@@ -625,7 +625,7 @@ func (c *ASCOMCoordinator) registerDeviceRoutes(router *gin.Engine) {
 			c.registerTelescopeRoutes(deviceGroup, device)
 		case "camera":
 			c.registerCameraRoutes(deviceGroup, device)
-		// Add other device types as needed
+			// Add other device types as needed
 		}
 
 		c.GetLogger().Info("Registered device routes",
@@ -818,22 +818,22 @@ func (c *ASCOMCoordinator) sendASCOMResponse(ctx *gin.Context, value interface{}
 		// Map error to ASCOM error code
 		errorNumber, errorMessage := c.mapErrorToASCOM(err)
 		ctx.JSON(http.StatusOK, gin.H{
-			"Value":                "",
-			"ClientTransactionID":  clientTxnID,
-			"ServerTransactionID":  serverTxnID,
-			"ErrorNumber":          errorNumber,
-			"ErrorMessage":         errorMessage,
+			"Value":               "",
+			"ClientTransactionID": clientTxnID,
+			"ServerTransactionID": serverTxnID,
+			"ErrorNumber":         errorNumber,
+			"ErrorMessage":        errorMessage,
 		})
 		return
 	}
 
 	// Success response
 	ctx.JSON(http.StatusOK, gin.H{
-		"Value":                value,
-		"ClientTransactionID":  clientTxnID,
-		"ServerTransactionID":  serverTxnID,
-		"ErrorNumber":          0,
-		"ErrorMessage":         "",
+		"Value":               value,
+		"ClientTransactionID": clientTxnID,
+		"ServerTransactionID": serverTxnID,
+		"ErrorNumber":         0,
+		"ErrorMessage":        "",
 	})
 }
 

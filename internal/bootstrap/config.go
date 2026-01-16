@@ -10,8 +10,11 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // BootstrapConfig holds configuration for the bootstrap coordinator.
@@ -213,4 +216,33 @@ func (c *DatabaseConfig) DatabaseURL() string {
 // BrokerURL returns the full MQTT broker URL.
 func (c *MQTTConfig) BrokerURLFull() string {
 	return fmt.Sprintf("tcp://%s:%d", c.BrokerURL, c.BrokerPort)
+}
+
+// CreateDatabasePool creates a PostgreSQL connection pool from a connection string.
+func CreateDatabasePool(connectionString string, maxConns int) (*pgxpool.Pool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	config, err := pgxpool.ParseConfig(connectionString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+
+	// Set pool configuration
+	if maxConns > 0 {
+		config.MaxConns = int32(maxConns)
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+	}
+
+	// Test the connection
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return pool, nil
 }

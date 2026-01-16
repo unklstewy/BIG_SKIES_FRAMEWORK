@@ -309,15 +309,15 @@ func (b *Bridge) mapTelescopeMethod(method string) (action, resource string) {
 		"abortslew":              {"control", "abort"},
 
 		// Parking
-		"park":      {"control", "park"},
-		"unpark":    {"control", "unpark"},
-		"setpark":   {"control", "setpark"},
-		"findhome":  {"control", "findhome"},
+		"park":     {"control", "park"},
+		"unpark":   {"control", "unpark"},
+		"setpark":  {"control", "setpark"},
+		"findhome": {"control", "findhome"},
 
 		// Tracking
-		"tracking":       {"control", "track"},
-		"trackingrate":   {"control", "trackingrate"},
-		"trackingrates":  {"status", "trackingrates"},
+		"tracking":      {"control", "track"},
+		"trackingrate":  {"control", "trackingrate"},
+		"trackingrates": {"status", "trackingrates"},
 
 		// Synchronization
 		"synctocoordinates": {"control", "sync"},
@@ -325,30 +325,30 @@ func (b *Bridge) mapTelescopeMethod(method string) (action, resource string) {
 		"synctoaltaz":       {"control", "sync"},
 
 		// Position queries
-		"rightascension":  {"status", "coordinates"},
-		"declination":     {"status", "coordinates"},
-		"altitude":        {"status", "coordinates"},
-		"azimuth":         {"status", "coordinates"},
-		"siderealtime":    {"status", "time"},
+		"rightascension": {"status", "coordinates"},
+		"declination":    {"status", "coordinates"},
+		"altitude":       {"status", "coordinates"},
+		"azimuth":        {"status", "coordinates"},
+		"siderealtime":   {"status", "time"},
 
 		// State queries
-		"connected":     {"status", "connection"},
-		"slewing":       {"status", "state"},
-		"athome":        {"status", "state"},
-		"atpark":        {"status", "state"},
+		"connected":      {"status", "connection"},
+		"slewing":        {"status", "state"},
+		"athome":         {"status", "state"},
+		"atpark":         {"status", "state"},
 		"ispulseguiding": {"status", "state"},
 
 		// Capabilities queries (read-only)
-		"canslew":      {"status", "capabilities"},
-		"canpark":      {"status", "capabilities"},
-		"canfindhome":  {"status", "capabilities"},
-		"cansync":      {"status", "capabilities"},
+		"canslew":     {"status", "capabilities"},
+		"canpark":     {"status", "capabilities"},
+		"canfindhome": {"status", "capabilities"},
+		"cansync":     {"status", "capabilities"},
 
 		// Configuration
-		"sitelatitude":    {"config", "site"},
-		"sitelongitude":   {"config", "site"},
-		"siteelevation":   {"config", "site"},
-		"doesrefraction":  {"config", "refraction"},
+		"sitelatitude":   {"config", "site"},
+		"sitelongitude":  {"config", "site"},
+		"siteelevation":  {"config", "site"},
+		"doesrefraction": {"config", "refraction"},
 	}
 
 	if mapping, exists := methodMap[method]; exists {

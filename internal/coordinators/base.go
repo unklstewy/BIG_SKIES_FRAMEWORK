@@ -3,11 +3,14 @@ package coordinators
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/bootstrap"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/api"
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/credentials"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/healthcheck"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 	"go.uber.org/zap"
@@ -24,6 +27,11 @@ type BaseCoordinator struct {
 	mu            sync.RWMutex
 	startTime     time.Time
 	shutdownFuncs []func(context.Context) error
+	// Credentials management
+	pgpassPath        string
+	dbCredentials     *bootstrap.Credentials
+	credentialsLoaded bool
+	credentialsChan   chan string // Channel to signal when credentials are loaded
 }
 
 // BaseConfig holds common configuration for coordinators.
@@ -47,11 +55,12 @@ func NewBaseCoordinator(name string, mqttClient *mqtt.Client, logger *zap.Logger
 	healthEngine := healthcheck.NewEngine(logger, 3*time.Second)
 
 	return &BaseCoordinator{
-		name:          name,
-		mqttClient:    mqttClient,
-		healthEngine:  healthEngine,
-		logger:        logger.With(zap.String("coordinator", name)),
-		shutdownFuncs: make([]func(context.Context) error, 0),
+		name:            name,
+		mqttClient:      mqttClient,
+		healthEngine:    healthEngine,
+		logger:          logger.With(zap.String("coordinator", name)),
+		shutdownFuncs:   make([]func(context.Context) error, 0),
+		credentialsChan: make(chan string, 1),
 	}
 }
 
@@ -276,6 +285,128 @@ func CreateMQTTClient(brokerURL, clientID string, logger *zap.Logger) (*mqtt.Cli
 	}
 
 	return mqtt.NewClient(mqttConfig, logger)
+}
+
+// WaitForCredentials subscribes to bootstrap credentials and waits for them to arrive.
+// This should be called before attempting to connect to the database.
+// It returns the database credentials or an error if timeout occurs.
+func (bc *BaseCoordinator) WaitForCredentials(ctx context.Context, timeout time.Duration) (*bootstrap.Credentials, error) {
+	bc.mu.RLock()
+	if bc.credentialsLoaded {
+		creds := bc.dbCredentials
+		bc.mu.RUnlock()
+		return creds, nil
+	}
+	bc.mu.RUnlock()
+
+	bc.logger.Info("Waiting for database credentials from bootstrap coordinator",
+		zap.Duration("timeout", timeout))
+
+	// Subscribe to bootstrap credentials topic
+	credentialsTopic := "bigskies/coordinator/bootstrap/credentials"
+	if err := bc.mqttClient.Subscribe(credentialsTopic, 1, bc.handleCredentialMessage); err != nil {
+		return nil, fmt.Errorf("failed to subscribe to credentials topic: %w", err)
+	}
+
+	// Publish a request for credentials (in case bootstrap already published before we subscribed)
+	requestTopic := "bigskies/coordinator/bootstrap/request"
+	if err := bc.mqttClient.Publish(requestTopic, 1, false, []byte(bc.name)); err != nil {
+		bc.logger.Warn("Failed to request credentials, will wait for periodic publish",
+			zap.Error(err))
+	}
+
+	// Wait for credentials with timeout
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("context cancelled while waiting for credentials")
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("timeout waiting for database credentials from bootstrap coordinator")
+	case pgpassPath := <-bc.credentialsChan:
+		bc.logger.Info("Received credentials from bootstrap coordinator")
+
+		// Load credentials from .pgpass file
+		dbConfig := &bootstrap.DatabaseConfig{
+			Host: "postgres",
+			Port: 5432,
+			Name: "bigskies",
+			User: "bigskies",
+		}
+		creds, err := bootstrap.LoadCredentials(dbConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load credentials from %s: %w", pgpassPath, err)
+		}
+
+		bc.mu.Lock()
+		bc.dbCredentials = creds
+		bc.pgpassPath = pgpassPath
+		bc.credentialsLoaded = true
+		bc.mu.Unlock()
+
+		bc.logger.Info("Database credentials loaded successfully",
+			zap.String("database", creds.Database),
+			zap.String("host", creds.Host),
+			zap.Int("port", creds.Port))
+
+		return creds, nil
+	}
+}
+
+// handleCredentialMessage processes incoming credential messages from bootstrap coordinator
+func (bc *BaseCoordinator) handleCredentialMessage(topic string, payload []byte) error {
+	var credMsg credentials.CredentialMessage
+	if err := json.Unmarshal(payload, &credMsg); err != nil {
+		bc.logger.Error("Failed to unmarshal credential message",
+			zap.Error(err))
+		return err
+	}
+
+	// Decode the .pgpass path
+	pgpassPath, err := credMsg.GetDecodedPath()
+	if err != nil {
+		bc.logger.Error("Failed to decode pgpass path",
+			zap.Error(err))
+		return err
+	}
+
+	bc.logger.Debug("Received credential message",
+		zap.String("path", pgpassPath),
+		zap.String("version", credMsg.Version))
+
+	// Send path to waiting goroutine (non-blocking)
+	select {
+	case bc.credentialsChan <- pgpassPath:
+	default:
+		// Channel full or already received, ignore
+	}
+
+	return nil
+}
+
+// GetDatabaseCredentials returns the loaded database credentials.
+// Returns nil if credentials haven't been loaded yet.
+func (bc *BaseCoordinator) GetDatabaseCredentials() *bootstrap.Credentials {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	return bc.dbCredentials
+}
+
+// HasDatabaseCredentials returns true if credentials have been loaded.
+func (bc *BaseCoordinator) HasDatabaseCredentials() bool {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	return bc.credentialsLoaded
+}
+
+// GetDatabaseURL returns a PostgreSQL connection URL from loaded credentials.
+func (bc *BaseCoordinator) GetDatabaseURL() (string, error) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	
+	if !bc.credentialsLoaded || bc.dbCredentials == nil {
+		return "", fmt.Errorf("credentials not loaded")
+	}
+	
+	return bc.dbCredentials.ConnectionURL("disable"), nil
 }
 
 // Verify BaseCoordinator implements interfaces

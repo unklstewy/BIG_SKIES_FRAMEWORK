@@ -96,9 +96,9 @@ func (s *Server) registerDevice(config DeviceConfig) error {
 				QoS:         s.config.Backend.MQTT.QoS,
 			},
 		},
-		Connected:   false,
-		LastUpdate:  time.Now(),
-		StateCache:  nil, // Will be populated when device state is queried
+		Connected:  false,
+		LastUpdate: time.Now(),
+		StateCache: nil, // Will be populated when device state is queried
 	}
 
 	// Add device to registry using a unique key

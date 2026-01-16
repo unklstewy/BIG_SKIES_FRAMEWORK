@@ -274,11 +274,11 @@ func (b *BaseHandler) handlePut(c *gin.Context, method string) {
 // sendSuccessResponse sends a successful ASCOM response.
 func (b *BaseHandler) sendSuccessResponse(c *gin.Context, clientTxnID, serverTxnID uint32, value interface{}) {
 	response := gin.H{
-		"Value":                value,
-		"ClientTransactionID":  clientTxnID,
-		"ServerTransactionID":  serverTxnID,
-		"ErrorNumber":          0,
-		"ErrorMessage":         "",
+		"Value":               value,
+		"ClientTransactionID": clientTxnID,
+		"ServerTransactionID": serverTxnID,
+		"ErrorNumber":         0,
+		"ErrorMessage":        "",
 	}
 
 	c.JSON(200, response)
@@ -290,11 +290,11 @@ func (b *BaseHandler) sendErrorResponse(c *gin.Context, clientTxnID, serverTxnID
 	errorNumber, errorMessage := b.mapErrorToASCOM(err)
 
 	response := gin.H{
-		"Value":                "",
-		"ClientTransactionID":  clientTxnID,
-		"ServerTransactionID":  serverTxnID,
-		"ErrorNumber":          errorNumber,
-		"ErrorMessage":         errorMessage,
+		"Value":               "",
+		"ClientTransactionID": clientTxnID,
+		"ServerTransactionID": serverTxnID,
+		"ErrorNumber":         errorNumber,
+		"ErrorMessage":        errorMessage,
 	}
 
 	c.JSON(200, response) // ASCOM always returns 200 OK, errors are in the response body

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -277,7 +277,7 @@ func (l *Loader) InsertConfigValue(ctx context.Context, coordinatorName, key str
 	_, err = l.pool.Exec(ctx, query, coordinatorName, key, jsonValue, configType, description, isSecret)
 	if err != nil {
 		// Check for unique constraint violation
-		if pgErr, ok := err.(*pgx.PgError); ok && pgErr.Code == "23505" {
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
 			return fmt.Errorf("config key %s already exists for coordinator %s", key, coordinatorName)
 		}
 		return fmt.Errorf("failed to insert config value: %w", err)

@@ -1,0 +1,229 @@
+# BIG SKIES Framework - Docker Compose Configuration
+# This file orchestrates all coordinators with proper dependencies and shared volumes
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: bigskies-postgres
+    environment:
+      POSTGRES_DB: bigskies
+      POSTGRES_USER: bigskies
+      POSTGRES_PASSWORD: bigskies_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # NOTE: Bootstrap coordinator handles migrations, not init scripts
+      # Only uncomment this line for initial PostgreSQL setup if needed:
+      # - ./configs/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bigskies"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bigskies
+
+  # MQTT Message Broker (Mosquitto)
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: bigskies-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./deployments/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt_data:/mosquitto/data
+      - mqtt_logs:/mosquitto/log
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bigskies
+
+  # Bootstrap Coordinator - Runs first, handles credentials and migrations
+  bootstrap-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.bootstrap
+    container_name: bigskies-bootstrap
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt-broker:
+        condition: service_healthy
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+    environment:
+      - LOG_LEVEL=info
+    command: [
+      "--config", "/app/configs/bootstrap.yaml",
+      "--pgpass", "/shared/secrets/.pgpass",
+      "--log-level", "info"
+    ]
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+  # DataStore Coordinator - Database connection manager
+  datastore-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.datastore-coordinator
+    container_name: bigskies-datastore
+    depends_on:
+      bootstrap-coordinator:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      mqtt-broker:
+        condition: service_healthy
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+  # Security Coordinator - Authentication and authorization
+  security-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.security-coordinator
+    container_name: bigskies-security
+    depends_on:
+      datastore-coordinator:
+        condition: service_started
+      mqtt-broker:
+        condition: service_healthy
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+  # Message Coordinator - Message bus monitoring
+  message-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.message-coordinator
+    container_name: bigskies-message
+    depends_on:
+      datastore-coordinator:
+        condition: service_started
+      mqtt-broker:
+        condition: service_healthy
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+  # Application Coordinator - Service registry
+  application-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.application-coordinator
+    container_name: bigskies-application
+    depends_on:
+      message-coordinator:
+        condition: service_started
+      security-coordinator:
+        condition: service_started
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+  # Plugin Coordinator - Plugin lifecycle management
+  plugin-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.plugin-coordinator
+    container_name: bigskies-plugin
+    depends_on:
+      application-coordinator:
+        condition: service_started
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+      - /var/run/docker.sock:/var/run/docker.sock  # For managing plugin containers
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+  # Telescope Coordinator - ASCOM device management
+  telescope-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.telescope-coordinator
+    container_name: bigskies-telescope
+    depends_on:
+      application-coordinator:
+        condition: service_started
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+  # UIElement Coordinator - UI element registry
+  uielement-coordinator:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.uielement-coordinator
+    container_name: bigskies-uielement
+    depends_on:
+      application-coordinator:
+        condition: service_started
+      plugin-coordinator:
+        condition: service_started
+    volumes:
+      - shared_secrets:/shared/secrets:ro
+      - ./configs:/app/configs:ro
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - bigskies
+    restart: unless-stopped
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+  mqtt_data:
+    driver: local
+  mqtt_logs:
+    driver: local
+  shared_secrets:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: mode=0600,uid=1000
+
+# Networks
+networks:
+  bigskies:
+    driver: bridge

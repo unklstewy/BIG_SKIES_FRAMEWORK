@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
-	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/models"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 )
 
@@ -149,7 +148,8 @@ func NewSecurityMiddleware(
 // It should be applied to all ASCOM API routes that require authentication.
 //
 // Usage:
-//   router.Use(securityMiddleware.AuthenticateRequest())
+//
+//	router.Use(securityMiddleware.AuthenticateRequest())
 func (sm *SecurityMiddleware) AuthenticateRequest() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// If authentication is disabled, allow request to proceed
@@ -214,8 +214,9 @@ func (sm *SecurityMiddleware) AuthenticateRequest() gin.HandlerFunc {
 // It extracts device type and number from URL path and verifies user has permission.
 //
 // Usage:
-//   deviceGroup := router.Group("/api/v1/:device_type/:device_number")
-//   deviceGroup.Use(securityMiddleware.AuthorizeTelescope())
+//
+//	deviceGroup := router.Group("/api/v1/:device_type/:device_number")
+//	deviceGroup.Use(securityMiddleware.AuthorizeTelescope())
 func (sm *SecurityMiddleware) AuthorizeTelescope() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip authorization if authentication is disabled
@@ -350,11 +351,6 @@ func (sm *SecurityMiddleware) validateTokenViaMQTT(ctx context.Context, token st
 	// Generate unique request ID
 	requestID := fmt.Sprintf("ascom-auth-%d", time.Now().UnixNano())
 
-	// Create validation request
-	request := &models.TokenValidationRequest{
-		Token: token,
-	}
-
 	// Create response channel
 	responseChan := make(chan *TokenValidationResponse, 1)
 	sm.pendingValidations.Store(requestID, responseChan)
@@ -362,13 +358,13 @@ func (sm *SecurityMiddleware) validateTokenViaMQTT(ctx context.Context, token st
 
 	// Publish validation request to security-coordinator
 	topic := "bigskies/coordinator/security/auth/validate"
-	
+
 	// Wrap request in MQTT message envelope with request_id
 	msgPayload := map[string]interface{}{
 		"request_id": requestID,
 		"token":      token,
 	}
-	
+
 	msg, err := mqtt.NewMessage(mqtt.MessageTypeRequest, "ascom-coordinator", msgPayload)
 	if err != nil {
 		close(responseChan)
@@ -418,8 +414,8 @@ func (sm *SecurityMiddleware) handleValidationResponse(topic string, payload []b
 
 	// Parse MQTT message envelope
 	var msgEnvelope struct {
-		MessageType string                      `json:"message_type"`
-		Payload     TokenValidationResponse     `json:"payload"`
+		MessageType string                  `json:"message_type"`
+		Payload     TokenValidationResponse `json:"payload"`
 	}
 
 	if err := json.Unmarshal(payload, &msgEnvelope); err != nil {
