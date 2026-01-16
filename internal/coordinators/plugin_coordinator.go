@@ -77,15 +77,15 @@ func NewPluginCoordinator(config *PluginCoordinatorConfig, logger *zap.Logger) (
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	// Create MQTT client
 	mqttClient, err := CreateMQTTClient(config.BrokerURL, mqtt.CoordinatorPlugin, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
-	
+
 	base := NewBaseCoordinator(mqtt.CoordinatorPlugin, mqttClient, logger)
-	
+
 	pc := &PluginCoordinator{
 		BaseCoordinator: base,
 		config:          config,
@@ -93,10 +93,10 @@ func NewPluginCoordinator(config *PluginCoordinatorConfig, logger *zap.Logger) (
 			plugins: make(map[string]*PluginEntry),
 		},
 	}
-	
+
 	// Register self health check
 	pc.RegisterHealthCheck(pc)
-	
+
 	return pc, nil
 }
 
@@ -104,17 +104,17 @@ func NewPluginCoordinator(config *PluginCoordinatorConfig, logger *zap.Logger) (
 func (pc *PluginCoordinator) Start(ctx context.Context) error {
 	pc.GetLogger().Info("Starting plugin coordinator",
 		zap.String("plugin_dir", pc.config.PluginDir))
-	
+
 	// Start base coordinator
 	if err := pc.BaseCoordinator.Start(ctx); err != nil {
 		return err
 	}
-	
+
 	// Subscribe to plugin command topics
 	if err := pc.subscribePluginTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to plugin topics: %w", err)
 	}
-	
+
 	// Start plugin scanner
 	go pc.scanPlugins(ctx)
 
@@ -138,17 +138,17 @@ func (pc *PluginCoordinator) subscribePluginTopics() error {
 		Action(mqtt.ActionCommand).
 		Resource("install").
 		Build()
-	
+
 	if err := pc.GetMQTTClient().Subscribe(installTopic, 1, pc.handleInstallCommand); err != nil {
 		return err
 	}
-	
+
 	removeTopic := mqtt.NewTopicBuilder().
 		Component(mqtt.CoordinatorPlugin).
 		Action(mqtt.ActionCommand).
 		Resource("remove").
 		Build()
-	
+
 	return pc.GetMQTTClient().Subscribe(removeTopic, 1, pc.handleRemoveCommand)
 }
 
@@ -159,7 +159,7 @@ func (pc *PluginCoordinator) handleInstallCommand(topic string, payload []byte) 
 		pc.GetLogger().Error("Failed to unmarshal install command", zap.Error(err))
 		return err
 	}
-	
+
 	var cmd struct {
 		GUID     string                 `json:"guid"`
 		Name     string                 `json:"name"`
@@ -167,17 +167,17 @@ func (pc *PluginCoordinator) handleInstallCommand(topic string, payload []byte) 
 		Source   string                 `json:"source"`
 		Metadata map[string]interface{} `json:"metadata"`
 	}
-	
+
 	if err := msg.UnmarshalPayload(&cmd); err != nil {
 		pc.GetLogger().Error("Failed to unmarshal install data", zap.Error(err))
 		return err
 	}
-	
+
 	pc.GetLogger().Info("Installing plugin",
 		zap.String("guid", cmd.GUID),
 		zap.String("name", cmd.Name),
 		zap.String("version", cmd.Version))
-	
+
 	// TODO: Actual installation logic with Docker
 	entry := &PluginEntry{
 		GUID:         cmd.GUID,
@@ -188,7 +188,7 @@ func (pc *PluginCoordinator) handleInstallCommand(topic string, payload []byte) 
 		LastVerified: time.Now(),
 		Metadata:     cmd.Metadata,
 	}
-	
+
 	pc.RegisterPlugin(entry)
 	return nil
 }
@@ -199,15 +199,15 @@ func (pc *PluginCoordinator) handleRemoveCommand(topic string, payload []byte) e
 	if err := msg.UnmarshalPayload(&payload); err != nil {
 		return err
 	}
-	
+
 	var cmd struct {
 		GUID string `json:"guid"`
 	}
-	
+
 	if err := msg.UnmarshalPayload(&cmd); err != nil {
 		return err
 	}
-	
+
 	pc.GetLogger().Info("Removing plugin", zap.String("guid", cmd.GUID))
 	pc.UnregisterPlugin(cmd.GUID)
 	return nil
@@ -217,7 +217,7 @@ func (pc *PluginCoordinator) handleRemoveCommand(topic string, payload []byte) e
 func (pc *PluginCoordinator) RegisterPlugin(entry *PluginEntry) {
 	pc.registry.mu.Lock()
 	defer pc.registry.mu.Unlock()
-	
+
 	pc.registry.plugins[entry.GUID] = entry
 	pc.GetLogger().Info("Plugin registered",
 		zap.String("guid", entry.GUID),
@@ -228,7 +228,7 @@ func (pc *PluginCoordinator) RegisterPlugin(entry *PluginEntry) {
 func (pc *PluginCoordinator) UnregisterPlugin(guid string) {
 	pc.registry.mu.Lock()
 	defer pc.registry.mu.Unlock()
-	
+
 	delete(pc.registry.plugins, guid)
 	pc.GetLogger().Info("Plugin unregistered", zap.String("guid", guid))
 }
@@ -237,7 +237,7 @@ func (pc *PluginCoordinator) UnregisterPlugin(guid string) {
 func (pc *PluginCoordinator) GetPlugin(guid string) (*PluginEntry, bool) {
 	pc.registry.mu.RLock()
 	defer pc.registry.mu.RUnlock()
-	
+
 	entry, exists := pc.registry.plugins[guid]
 	return entry, exists
 }
@@ -246,7 +246,7 @@ func (pc *PluginCoordinator) GetPlugin(guid string) (*PluginEntry, bool) {
 func (pc *PluginCoordinator) ListPlugins() []*PluginEntry {
 	pc.registry.mu.RLock()
 	defer pc.registry.mu.RUnlock()
-	
+
 	plugins := make([]*PluginEntry, 0, len(pc.registry.plugins))
 	for _, entry := range pc.registry.plugins {
 		plugins = append(plugins, entry)
@@ -258,7 +258,7 @@ func (pc *PluginCoordinator) ListPlugins() []*PluginEntry {
 func (pc *PluginCoordinator) scanPlugins(ctx context.Context) {
 	ticker := time.NewTicker(pc.config.ScanInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -273,7 +273,7 @@ func (pc *PluginCoordinator) scanPlugins(ctx context.Context) {
 func (pc *PluginCoordinator) verifyPlugins() {
 	pc.registry.mu.Lock()
 	defer pc.registry.mu.Unlock()
-	
+
 	now := time.Now()
 	for _, entry := range pc.registry.plugins {
 		// TODO: Actual verification logic
@@ -289,7 +289,7 @@ func (pc *PluginCoordinator) Check(ctx context.Context) *healthcheck.Result {
 	status := healthcheck.StatusHealthy
 	message := "Plugin coordinator is healthy"
 	details := make(map[string]interface{})
-	
+
 	pc.registry.mu.RLock()
 	pluginCount := len(pc.registry.plugins)
 	failedCount := 0
@@ -299,15 +299,15 @@ func (pc *PluginCoordinator) Check(ctx context.Context) *healthcheck.Result {
 		}
 	}
 	pc.registry.mu.RUnlock()
-	
+
 	details["total_plugins"] = pluginCount
 	details["failed_plugins"] = failedCount
-	
+
 	if failedCount > 0 {
 		status = healthcheck.StatusDegraded
 		message = fmt.Sprintf("%d plugin(s) failed", failedCount)
 	}
-	
+
 	return &healthcheck.Result{
 		ComponentName: "plugin-coordinator",
 		Status:        status,
@@ -328,7 +328,7 @@ func (pc *PluginCoordinator) LoadConfig(config interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid config type")
 	}
-	
+
 	pc.config = cfg
 	return pc.BaseCoordinator.LoadConfig(config)
 }

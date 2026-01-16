@@ -15,9 +15,9 @@ import (
 
 // ConfigHandler handles configuration-related MQTT messages.
 type ConfigHandler struct {
-	loader       *ConfigLoader
-	mqttClient   mqtt.Client
-	pluginID     string
+	loader        *ConfigLoader
+	mqttClient    mqtt.Client
+	pluginID      string
 	responseTopic string
 	eventTopic    string
 }
@@ -98,7 +98,7 @@ func (h *ConfigHandler) handleLoadConfig(req ConfigRequest) {
 	if err := h.loader.LoadConfiguration(req.Model, req.MountType, loadedBy); err != nil {
 		log.Printf("Failed to load configuration: %v", err)
 		h.sendErrorResponse(req.RequestID, "load_config", "Failed to load configuration: "+err.Error())
-		
+
 		// Publish failure event
 		h.publishEvent("config_failed", ConfigStatus{}, "Configuration load failed: "+err.Error())
 		return
@@ -148,7 +148,7 @@ func (h *ConfigHandler) handleListConfigs(req ConfigRequest) {
 	log.Println("Listing available configurations")
 
 	configs := GetAvailableConfigs()
-	
+
 	// Get current status
 	currentStatus, err := h.loader.GetCurrentStatus()
 	if err != nil {
@@ -291,7 +291,7 @@ func (h *ConfigHandler) connectAllDevices() {
 		h.publishEvent("devices_connected", ConfigStatus{}, fmt.Sprintf("All %d devices connected", connected))
 	} else {
 		log.Printf("Connected %d/%d devices. Failed: %v", connected, len(devices), failed)
-		h.publishEvent("devices_connected", ConfigStatus{}, 
+		h.publishEvent("devices_connected", ConfigStatus{},
 			fmt.Sprintf("Connected %d/%d devices. Failed: %v", connected, len(devices), failed))
 	}
 }

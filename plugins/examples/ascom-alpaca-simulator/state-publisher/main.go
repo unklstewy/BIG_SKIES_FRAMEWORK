@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	pluginID       = os.Getenv("PLUGIN_ID")
-	mqttBroker     = os.Getenv("MQTT_BROKER")
-	ascomBaseURL   = os.Getenv("ASCOM_BASE_URL")
+	pluginID        = os.Getenv("PLUGIN_ID")
+	mqttBroker      = os.Getenv("MQTT_BROKER")
+	ascomBaseURL    = os.Getenv("ASCOM_BASE_URL")
 	publishInterval = 1 * time.Second // Poll every second
 )
 

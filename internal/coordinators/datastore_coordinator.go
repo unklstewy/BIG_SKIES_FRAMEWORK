@@ -39,23 +39,23 @@ func NewDataStoreCoordinator(config *DataStoreCoordinatorConfig, logger *zap.Log
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	// Create MQTT client for coordination messages
 	mqttClient, err := CreateMQTTClient(config.BrokerURL, mqtt.CoordinatorDataStore, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
-	
+
 	base := NewBaseCoordinator(mqtt.CoordinatorDataStore, mqttClient, logger)
-	
+
 	dsc := &DataStoreCoordinator{
 		BaseCoordinator: base,
 		config:          config,
 	}
-	
+
 	// Register self health check
 	dsc.RegisterHealthCheck(dsc)
-	
+
 	return dsc, nil
 }
 
@@ -63,32 +63,32 @@ func NewDataStoreCoordinator(config *DataStoreCoordinatorConfig, logger *zap.Log
 func (dsc *DataStoreCoordinator) Start(ctx context.Context) error {
 	dsc.GetLogger().Info("Starting data store coordinator",
 		zap.String("database_url", maskDatabaseURL(dsc.config.DatabaseURL)))
-	
+
 	// Create database pool configuration
 	poolConfig, err := pgxpool.ParseConfig(dsc.config.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse database URL: %w", err)
 	}
-	
+
 	poolConfig.MaxConns = int32(dsc.config.MaxConnections)
 	poolConfig.MinConns = int32(dsc.config.MinConnections)
 	poolConfig.MaxConnLifetime = 1 * time.Hour
 	poolConfig.MaxConnIdleTime = 30 * time.Minute
-	
+
 	// Create connection pool
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}
-	
+
 	// Test connection
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
-	
+
 	dsc.pool = pool
-	
+
 	// Register cleanup function
 	dsc.RegisterShutdownFunc(func(ctx context.Context) error {
 		if dsc.pool != nil {
@@ -96,7 +96,7 @@ func (dsc *DataStoreCoordinator) Start(ctx context.Context) error {
 		}
 		return nil
 	})
-	
+
 	// Start base coordinator
 	if err := dsc.BaseCoordinator.Start(ctx); err != nil {
 		pool.Close()
@@ -126,7 +126,7 @@ func (dsc *DataStoreCoordinator) Check(ctx context.Context) *healthcheck.Result 
 	status := healthcheck.StatusHealthy
 	message := "Data store coordinator is healthy"
 	details := make(map[string]interface{})
-	
+
 	// Check if pool is available
 	if dsc.pool == nil {
 		status = healthcheck.StatusUnhealthy
@@ -134,11 +134,11 @@ func (dsc *DataStoreCoordinator) Check(ctx context.Context) *healthcheck.Result 
 		details["pool_initialized"] = false
 	} else {
 		details["pool_initialized"] = true
-		
+
 		// Try to ping database
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		
+
 		if err := dsc.pool.Ping(ctx); err != nil {
 			status = healthcheck.StatusUnhealthy
 			message = "Database ping failed: " + err.Error()
@@ -149,7 +149,7 @@ func (dsc *DataStoreCoordinator) Check(ctx context.Context) *healthcheck.Result 
 			details["total_conns"] = stats.TotalConns()
 			details["idle_conns"] = stats.IdleConns()
 			details["acquired_conns"] = stats.AcquiredConns()
-			
+
 			// Check if we're running low on connections
 			if stats.AcquiredConns() >= int32(dsc.config.MaxConnections)-1 {
 				status = healthcheck.StatusDegraded
@@ -157,7 +157,7 @@ func (dsc *DataStoreCoordinator) Check(ctx context.Context) *healthcheck.Result 
 			}
 		}
 	}
-	
+
 	return &healthcheck.Result{
 		ComponentName: "datastore-coordinator",
 		Status:        status,
@@ -178,7 +178,7 @@ func (dsc *DataStoreCoordinator) LoadConfig(config interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid config type")
 	}
-	
+
 	dsc.config = cfg
 	return dsc.BaseCoordinator.LoadConfig(config)
 }

@@ -17,13 +17,13 @@ import (
 
 // mockMQTTClient is a test double for MQTT client
 type mockMQTTClient struct {
-	connected      bool
-	publishedMsgs  []publishedMessage
-	mu             sync.Mutex
-	publishErr     error
-	subscriptions  map[string]mqtt.MessageHandler
-	connectErr     error
-	publishHook    func(topic string, payload interface{}) // Hook to capture publishes
+	connected     bool
+	publishedMsgs []publishedMessage
+	mu            sync.Mutex
+	publishErr    error
+	subscriptions map[string]mqtt.MessageHandler
+	connectErr    error
+	publishHook   func(topic string, payload interface{}) // Hook to capture publishes
 }
 
 type publishedMessage struct {
@@ -85,7 +85,7 @@ func (m *mockMQTTClient) PublishJSON(topic string, qos byte, retained bool, payl
 	if m.publishHook != nil {
 		m.publishHook(topic, payload)
 	}
-	
+
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err

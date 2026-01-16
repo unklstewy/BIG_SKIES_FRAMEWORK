@@ -203,12 +203,12 @@ func (c *TelescopeCoordinator) handleMessage(topic string, payload []byte) {
 // handleCreateConfig creates a new telescope configuration.
 func (c *TelescopeCoordinator) handleCreateConfig(ctx context.Context, payload []byte) {
 	var req struct {
-		Name        string  `json:"name"`
-		Description string  `json:"description"`
-		OwnerID     string  `json:"owner_id"`
-		OwnerType   string  `json:"owner_type"`
-		SiteID      string  `json:"site_id"`
-		MountType   string  `json:"mount_type"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		OwnerID     string `json:"owner_id"`
+		OwnerType   string `json:"owner_type"`
+		SiteID      string `json:"site_id"`
+		MountType   string `json:"mount_type"`
 	}
 
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -673,10 +673,10 @@ func (c *TelescopeCoordinator) handleDisconnectDevice(ctx context.Context, paylo
 // handleSlewTelescope slews a telescope to coordinates.
 func (c *TelescopeCoordinator) handleSlewTelescope(ctx context.Context, payload []byte) {
 	var req struct {
-		DeviceID         string  `json:"device_id"`
-		TelescopeID      string  `json:"telescope_id"` // deprecated, use device_id
-		RightAscension   float64 `json:"right_ascension"`
-		Declination      float64 `json:"declination"`
+		DeviceID       string  `json:"device_id"`
+		TelescopeID    string  `json:"telescope_id"` // deprecated, use device_id
+		RightAscension float64 `json:"right_ascension"`
+		Declination    float64 `json:"declination"`
 	}
 
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -830,7 +830,7 @@ func (c *TelescopeCoordinator) handleSetTracking(ctx context.Context, payload []
 	var req struct {
 		DeviceID    string `json:"device_id"`
 		TelescopeID string `json:"telescope_id"` // deprecated, use device_id
-		Enabled     bool   `json:"enabled"`       // alias for tracking
+		Enabled     bool   `json:"enabled"`      // alias for tracking
 		Tracking    bool   `json:"tracking"`
 	}
 
@@ -981,10 +981,10 @@ func (c *TelescopeCoordinator) handleGetStatus(ctx context.Context, payload []by
 // handleStartSession starts a telescope session.
 func (c *TelescopeCoordinator) handleStartSession(ctx context.Context, payload []byte) {
 	var req struct {
-		ConfigID    string `json:"config_id"`     // telescope configuration ID
-		TelescopeID string `json:"telescope_id"`  // deprecated, use config_id
+		ConfigID    string `json:"config_id"`    // telescope configuration ID
+		TelescopeID string `json:"telescope_id"` // deprecated, use config_id
 		UserID      string `json:"user_id"`
-		SessionName string `json:"session_name"`  // alias for session_type
+		SessionName string `json:"session_name"` // alias for session_type
 		SessionType string `json:"session_type"`
 		Notes       string `json:"notes"`
 	}
@@ -1113,4 +1113,3 @@ func (c *TelescopeCoordinator) publishResponse(subtopic string, payload interfac
 			zap.Error(err))
 	}
 }
-

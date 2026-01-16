@@ -46,7 +46,7 @@ var (
 	pluginName = os.Getenv("PLUGIN_NAME")
 	mqttBroker = os.Getenv("MQTT_BROKER")
 	logLevel   = os.Getenv("LOG_LEVEL")
-	
+
 	startTime = time.Now()
 	ascomURL  = "http://localhost/api/v1/management/apiversions"
 )
@@ -86,7 +86,7 @@ func main() {
 	})
 
 	client := mqtt.NewClient(opts)
-	
+
 	// Wait for ASCOM to be ready before connecting to MQTT
 	log.Println("Waiting for ASCOM Alpaca API to be ready...")
 	waitForASCOM(30 * time.Second)
@@ -119,10 +119,10 @@ func main() {
 	sig := <-sigChan
 
 	log.Printf("Received signal %v, shutting down...", sig)
-	
+
 	// Send final unhealthy status
 	sendHealthStatus(client, "unhealthy", "Plugin shutting down")
-	
+
 	time.Sleep(500 * time.Millisecond) // Allow final message to send
 	client.Disconnect(250)
 	log.Println("Health reporter stopped")
@@ -141,7 +141,7 @@ func waitForASCOM(timeout time.Duration) {
 		}
 		<-ticker.C
 	}
-	
+
 	log.Println("Warning: ASCOM API not responding, continuing anyway...")
 }
 
@@ -171,7 +171,7 @@ func publishHealth(ctx context.Context, client mqtt.Client) {
 // sendHealthStatus publishes a health status message
 func sendHealthStatus(client mqtt.Client, status, message string) {
 	uptime := time.Since(startTime).Seconds()
-	
+
 	health := HealthStatus{
 		ID:        fmt.Sprintf("%s.%06d", time.Now().Format("20060102150405"), time.Now().Nanosecond()/1000),
 		Source:    fmt.Sprintf("plugin:%s", pluginID),
@@ -198,7 +198,7 @@ func sendHealthStatus(client mqtt.Client, status, message string) {
 	topic := fmt.Sprintf("bigskies/plugin/%s/health", pluginID)
 	token := client.Publish(topic, 1, false, payload)
 	token.Wait()
-	
+
 	if token.Error() != nil {
 		log.Printf("Error publishing health status: %v", token.Error())
 	} else if logLevel == "debug" {
@@ -243,7 +243,7 @@ func checkASCOMHealth() bool {
 // handleControlMessage handles control messages from the framework
 func handleControlMessage(client mqtt.Client, msg mqtt.Message) {
 	log.Printf("Received control message on topic %s: %s", msg.Topic(), string(msg.Payload()))
-	
+
 	// Parse control message
 	var control map[string]interface{}
 	if err := json.Unmarshal(msg.Payload(), &control); err != nil {

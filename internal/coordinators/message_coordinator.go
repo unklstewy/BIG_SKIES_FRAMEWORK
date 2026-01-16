@@ -39,25 +39,25 @@ func NewMessageCoordinator(config *MessageCoordinatorConfig, logger *zap.Logger)
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	// Create MQTT client
 	brokerURL := fmt.Sprintf("%s:%d", config.BrokerURL, config.BrokerPort)
 	mqttClient, err := CreateMQTTClient(brokerURL, mqtt.CoordinatorMessage, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
-	
+
 	base := NewBaseCoordinator(mqtt.CoordinatorMessage, mqttClient, logger)
-	
+
 	mc := &MessageCoordinator{
 		BaseCoordinator:  base,
 		config:           config,
 		subscribedTopics: make(map[string]bool),
 	}
-	
+
 	// Register self health check
 	mc.RegisterHealthCheck(mc)
-	
+
 	return mc, nil
 }
 
@@ -66,12 +66,12 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 	mc.GetLogger().Info("Starting message coordinator",
 		zap.String("broker", mc.config.BrokerURL),
 		zap.Int("port", mc.config.BrokerPort))
-	
+
 	// Start base coordinator
 	if err := mc.BaseCoordinator.Start(ctx); err != nil {
 		return err
 	}
-	
+
 	// Subscribe to coordinator health topics
 	if err := mc.subscribeHealthTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to health topics: %w", err)
@@ -87,7 +87,7 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 // Stop shuts down the message coordinator.
 func (mc *MessageCoordinator) Stop(ctx context.Context) error {
 	mc.GetLogger().Info("Stopping message coordinator")
-	
+
 	// Unsubscribe from all topics
 	mc.mu.RLock()
 	topics := make([]string, 0, len(mc.subscribedTopics))
@@ -95,13 +95,13 @@ func (mc *MessageCoordinator) Stop(ctx context.Context) error {
 		topics = append(topics, topic)
 	}
 	mc.mu.RUnlock()
-	
+
 	for _, topic := range topics {
 		if err := mc.GetMQTTClient().Unsubscribe(topic); err != nil {
 			mc.GetLogger().Warn("Failed to unsubscribe", zap.String("topic", topic), zap.Error(err))
 		}
 	}
-	
+
 	// Stop base coordinator
 	return mc.BaseCoordinator.Stop(ctx)
 }
@@ -117,14 +117,14 @@ func (mc *MessageCoordinator) subscribeHealthTopics() error {
 		mqtt.CoordinatorTelescope,
 		mqtt.CoordinatorUIElement,
 	}
-	
+
 	for _, coord := range coordinators {
 		topic := mqtt.CoordinatorHealthTopic(coord)
 		if err := mc.subscribe(topic, mc.handleHealthMessage); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -133,11 +133,11 @@ func (mc *MessageCoordinator) subscribe(topic string, handler mqtt.MessageHandle
 	if err := mc.GetMQTTClient().Subscribe(topic, 1, handler); err != nil {
 		return err
 	}
-	
+
 	mc.mu.Lock()
 	mc.subscribedTopics[topic] = true
 	mc.mu.Unlock()
-	
+
 	return nil
 }
 
@@ -146,25 +146,25 @@ func (mc *MessageCoordinator) handleHealthMessage(topic string, payload []byte) 
 	mc.GetLogger().Debug("Received health message",
 		zap.String("topic", topic),
 		zap.Int("size", len(payload)))
-	
+
 	// First unmarshal the entire MQTT message envelope
 	var msg mqtt.Message
 	if err := json.Unmarshal(payload, &msg); err != nil {
 		mc.GetLogger().Error("Failed to unmarshal health message envelope", zap.Error(err))
 		return err
 	}
-	
+
 	// Then unmarshal the health check result from the payload
 	var health healthcheck.Result
 	if err := msg.UnmarshalPayload(&health); err != nil {
 		mc.GetLogger().Error("Failed to unmarshal health payload", zap.Error(err))
 		return err
 	}
-	
+
 	mc.GetLogger().Debug("Processed health message",
 		zap.String("component", health.ComponentName),
 		zap.String("status", string(health.Status)))
-	
+
 	// TODO: Store and aggregate health data
 	return nil
 }
@@ -172,13 +172,13 @@ func (mc *MessageCoordinator) handleHealthMessage(topic string, payload []byte) 
 // PublishHealth publishes health check results to the message bus.
 func (mc *MessageCoordinator) PublishHealth(ctx context.Context) error {
 	result := mc.HealthCheck(ctx)
-	
+
 	topic := mqtt.CoordinatorHealthTopic(mqtt.CoordinatorMessage)
 	msg, err := mqtt.NewMessage(mqtt.MessageTypeStatus, "coordinator:message", result)
 	if err != nil {
 		return fmt.Errorf("failed to create health message: %w", err)
 	}
-	
+
 	return mc.GetMQTTClient().PublishJSON(topic, 1, false, msg)
 }
 
@@ -187,7 +187,7 @@ func (mc *MessageCoordinator) Check(ctx context.Context) *healthcheck.Result {
 	status := healthcheck.StatusHealthy
 	message := "Message coordinator is healthy"
 	details := make(map[string]interface{})
-	
+
 	// Check MQTT connection
 	mqttClient := mc.GetMQTTClient()
 	if mqttClient == nil || !mqttClient.IsConnected() {
@@ -197,19 +197,19 @@ func (mc *MessageCoordinator) Check(ctx context.Context) *healthcheck.Result {
 	} else {
 		details["mqtt_connected"] = true
 	}
-	
+
 	// Check subscribed topics
 	mc.mu.RLock()
 	topicCount := len(mc.subscribedTopics)
 	mc.mu.RUnlock()
-	
+
 	details["subscribed_topics"] = topicCount
-	
+
 	if topicCount == 0 {
 		status = healthcheck.StatusDegraded
 		message = "No topics subscribed"
 	}
-	
+
 	return &healthcheck.Result{
 		ComponentName: "message-coordinator",
 		Status:        status,
@@ -230,7 +230,7 @@ func (mc *MessageCoordinator) LoadConfig(config interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid config type")
 	}
-	
+
 	mc.config = cfg
 	return mc.BaseCoordinator.LoadConfig(config)
 }

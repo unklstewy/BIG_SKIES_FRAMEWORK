@@ -110,10 +110,10 @@ func TestMessageCoordinatorHealthSubscriptions(t *testing.T) {
 	// Publish mock health from security coordinator
 	securityHealthTopic := "bigskies/coordinator/security/health"
 	mockHealth := map[string]interface{}{
-		"component":  "security-coordinator",
-		"status":     "healthy",
-		"timestamp":  time.Now().Unix(),
-		"message":    "Test health message",
+		"component": "security-coordinator",
+		"status":    "healthy",
+		"timestamp": time.Now().Unix(),
+		"message":   "Test health message",
 	}
 
 	payload, err := json.Marshal(mockHealth)

@@ -219,7 +219,7 @@ func (bc *BaseCoordinator) StartHealthPublishing(ctx context.Context) {
 
 	// Small delay to allow MQTT subscriptions to be established
 	time.Sleep(500 * time.Millisecond)
-	
+
 	// Publish initial health
 	bc.publishHealth(ctx)
 

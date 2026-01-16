@@ -59,15 +59,15 @@ func NewApplicationCoordinator(config *ApplicationCoordinatorConfig, logger *zap
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	// Create MQTT client
 	mqttClient, err := CreateMQTTClient(config.BrokerURL, mqtt.CoordinatorApplication, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MQTT client: %w", err)
 	}
-	
+
 	base := NewBaseCoordinator(mqtt.CoordinatorApplication, mqttClient, logger)
-	
+
 	ac := &ApplicationCoordinator{
 		BaseCoordinator: base,
 		config:          config,
@@ -75,27 +75,27 @@ func NewApplicationCoordinator(config *ApplicationCoordinatorConfig, logger *zap
 			services: make(map[string]*ServiceEntry),
 		},
 	}
-	
+
 	// Register self health check
 	ac.RegisterHealthCheck(ac)
-	
+
 	return ac, nil
 }
 
 // Start begins application coordinator operations.
 func (ac *ApplicationCoordinator) Start(ctx context.Context) error {
 	ac.GetLogger().Info("Starting application coordinator")
-	
+
 	// Start base coordinator
 	if err := ac.BaseCoordinator.Start(ctx); err != nil {
 		return err
 	}
-	
+
 	// Subscribe to service registration topics
 	if err := ac.subscribeServiceTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to service topics: %w", err)
 	}
-	
+
 	// Start registry monitoring
 	go ac.monitorServices(ctx)
 
@@ -119,17 +119,17 @@ func (ac *ApplicationCoordinator) subscribeServiceTopics() error {
 		Action(mqtt.ActionEvent).
 		Resource("register").
 		Build()
-	
+
 	if err := ac.GetMQTTClient().Subscribe(topic, 1, ac.handleServiceRegistration); err != nil {
 		return err
 	}
-	
+
 	heartbeatTopic := mqtt.NewTopicBuilder().
 		Component("service").
 		Action(mqtt.ActionEvent).
 		Resource("heartbeat").
 		Build()
-	
+
 	return ac.GetMQTTClient().Subscribe(heartbeatTopic, 1, ac.handleServiceHeartbeat)
 }
 
@@ -140,19 +140,19 @@ func (ac *ApplicationCoordinator) handleServiceRegistration(topic string, payloa
 		ac.GetLogger().Error("Failed to unmarshal registration message", zap.Error(err))
 		return err
 	}
-	
+
 	var registration struct {
 		ID       string                 `json:"id"`
 		Name     string                 `json:"name"`
 		Endpoint string                 `json:"endpoint"`
 		Metadata map[string]interface{} `json:"metadata"`
 	}
-	
+
 	if err := msg.UnmarshalPayload(&registration); err != nil {
 		ac.GetLogger().Error("Failed to unmarshal registration data", zap.Error(err))
 		return err
 	}
-	
+
 	ac.RegisterService(&ServiceEntry{
 		ID:            registration.ID,
 		Name:          registration.Name,
@@ -162,11 +162,11 @@ func (ac *ApplicationCoordinator) handleServiceRegistration(topic string, payloa
 		LastHeartbeat: time.Now(),
 		Metadata:      registration.Metadata,
 	})
-	
+
 	ac.GetLogger().Info("Service registered",
 		zap.String("id", registration.ID),
 		zap.String("name", registration.Name))
-	
+
 	return nil
 }
 
@@ -176,16 +176,16 @@ func (ac *ApplicationCoordinator) handleServiceHeartbeat(topic string, payload [
 	if err := msg.UnmarshalPayload(&payload); err != nil {
 		return err
 	}
-	
+
 	var heartbeat struct {
-		ID     string              `json:"id"`
-		Status healthcheck.Status  `json:"status"`
+		ID     string             `json:"id"`
+		Status healthcheck.Status `json:"status"`
 	}
-	
+
 	if err := msg.UnmarshalPayload(&heartbeat); err != nil {
 		return err
 	}
-	
+
 	ac.UpdateServiceHeartbeat(heartbeat.ID, heartbeat.Status)
 	return nil
 }
@@ -194,7 +194,7 @@ func (ac *ApplicationCoordinator) handleServiceHeartbeat(topic string, payload [
 func (ac *ApplicationCoordinator) RegisterService(entry *ServiceEntry) {
 	ac.registry.mu.Lock()
 	defer ac.registry.mu.Unlock()
-	
+
 	ac.registry.services[entry.ID] = entry
 }
 
@@ -202,7 +202,7 @@ func (ac *ApplicationCoordinator) RegisterService(entry *ServiceEntry) {
 func (ac *ApplicationCoordinator) UnregisterService(serviceID string) {
 	ac.registry.mu.Lock()
 	defer ac.registry.mu.Unlock()
-	
+
 	delete(ac.registry.services, serviceID)
 	ac.GetLogger().Info("Service unregistered", zap.String("id", serviceID))
 }
@@ -211,7 +211,7 @@ func (ac *ApplicationCoordinator) UnregisterService(serviceID string) {
 func (ac *ApplicationCoordinator) UpdateServiceHeartbeat(serviceID string, status healthcheck.Status) {
 	ac.registry.mu.Lock()
 	defer ac.registry.mu.Unlock()
-	
+
 	if entry, exists := ac.registry.services[serviceID]; exists {
 		entry.LastHeartbeat = time.Now()
 		entry.Status = status
@@ -222,7 +222,7 @@ func (ac *ApplicationCoordinator) UpdateServiceHeartbeat(serviceID string, statu
 func (ac *ApplicationCoordinator) GetService(serviceID string) (*ServiceEntry, bool) {
 	ac.registry.mu.RLock()
 	defer ac.registry.mu.RUnlock()
-	
+
 	entry, exists := ac.registry.services[serviceID]
 	return entry, exists
 }
@@ -231,7 +231,7 @@ func (ac *ApplicationCoordinator) GetService(serviceID string) (*ServiceEntry, b
 func (ac *ApplicationCoordinator) ListServices() []*ServiceEntry {
 	ac.registry.mu.RLock()
 	defer ac.registry.mu.RUnlock()
-	
+
 	services := make([]*ServiceEntry, 0, len(ac.registry.services))
 	for _, entry := range ac.registry.services {
 		services = append(services, entry)
@@ -243,7 +243,7 @@ func (ac *ApplicationCoordinator) ListServices() []*ServiceEntry {
 func (ac *ApplicationCoordinator) monitorServices(ctx context.Context) {
 	ticker := time.NewTicker(ac.config.RegistryCheckInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -258,17 +258,17 @@ func (ac *ApplicationCoordinator) monitorServices(ctx context.Context) {
 func (ac *ApplicationCoordinator) checkServiceHealth() {
 	ac.registry.mu.Lock()
 	defer ac.registry.mu.Unlock()
-	
+
 	now := time.Now()
 	timeout := ac.config.ServiceTimeout
-	
+
 	for id, entry := range ac.registry.services {
 		if now.Sub(entry.LastHeartbeat) > timeout {
 			ac.GetLogger().Warn("Service missed heartbeat",
 				zap.String("id", id),
 				zap.String("name", entry.Name),
 				zap.Duration("since", now.Sub(entry.LastHeartbeat)))
-			
+
 			entry.Status = healthcheck.StatusUnhealthy
 		}
 	}
@@ -279,7 +279,7 @@ func (ac *ApplicationCoordinator) Check(ctx context.Context) *healthcheck.Result
 	status := healthcheck.StatusHealthy
 	message := "Application coordinator is healthy"
 	details := make(map[string]interface{})
-	
+
 	ac.registry.mu.RLock()
 	serviceCount := len(ac.registry.services)
 	unhealthyCount := 0
@@ -289,15 +289,15 @@ func (ac *ApplicationCoordinator) Check(ctx context.Context) *healthcheck.Result
 		}
 	}
 	ac.registry.mu.RUnlock()
-	
+
 	details["total_services"] = serviceCount
 	details["unhealthy_services"] = unhealthyCount
-	
+
 	if unhealthyCount > 0 {
 		status = healthcheck.StatusDegraded
 		message = fmt.Sprintf("%d service(s) unhealthy", unhealthyCount)
 	}
-	
+
 	return &healthcheck.Result{
 		ComponentName: "application-coordinator",
 		Status:        status,
@@ -318,7 +318,7 @@ func (ac *ApplicationCoordinator) LoadConfig(config interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid config type")
 	}
-	
+
 	ac.config = cfg
 	return ac.BaseCoordinator.LoadConfig(config)
 }

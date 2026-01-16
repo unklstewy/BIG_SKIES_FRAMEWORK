@@ -47,7 +47,7 @@ func TestDatastoreCoordinatorHealth(t *testing.T) {
 		var health map[string]interface{}
 		err := json.Unmarshal([]byte(healthMsg), &health)
 		require.NoError(t, err)
-		
+
 		assert.NotNil(t, health["payload"], "Health message should have payload")
 		t.Logf("Datastore coordinator health: %v", health)
 
@@ -102,7 +102,7 @@ func TestDatastoreCoordinatorConnection(t *testing.T) {
 }
 
 // =============================================================================
-// Plugin Coordinator Tests  
+// Plugin Coordinator Tests
 // =============================================================================
 
 // TestPluginCoordinatorInstallRequest tests plugin installation request

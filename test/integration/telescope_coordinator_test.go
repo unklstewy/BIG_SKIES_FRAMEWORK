@@ -464,10 +464,10 @@ func TestTelescopeCoordinatorSlewTelescope(t *testing.T) {
 
 	// Send slew command
 	slewReq := map[string]interface{}{
-		"device_id":        "test-device-" + uuid.New().String(),
-		"right_ascension":  12.5,  // RA in hours
-		"declination":      45.0,  // Dec in degrees
-		"target_name":      "Test Target",
+		"device_id":       "test-device-" + uuid.New().String(),
+		"right_ascension": 12.5, // RA in hours
+		"declination":     45.0, // Dec in degrees
+		"target_name":     "Test Target",
 	}
 
 	response := publishAndWaitForResponse(
@@ -854,7 +854,7 @@ func TestTelescopeCoordinatorConcurrentRequests(t *testing.T) {
 	// Create multiple configs in rapid succession, waiting for each response
 	numConfigs := 5
 	t.Logf("Creating %d configs in rapid succession for user %s", numConfigs, userID)
-	
+
 	for i := 0; i < numConfigs; i++ {
 		configReq := map[string]interface{}{
 			"name":        "Concurrent Test " + string(rune('A'+i)),
@@ -875,9 +875,9 @@ func TestTelescopeCoordinatorConcurrentRequests(t *testing.T) {
 		err := json.Unmarshal([]byte(response), &createResult)
 		require.NoError(t, err, "Failed to unmarshal response for config %d", i)
 		require.True(t, createResult["success"].(bool), "Config %d creation should succeed", i)
-		
+
 		t.Logf("Created config %d: %s", i, createResult["id"])
-		
+
 		// Small delay between requests
 		time.Sleep(50 * time.Millisecond)
 	}

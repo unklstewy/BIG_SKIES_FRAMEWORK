@@ -23,14 +23,14 @@ func main() {
 	// Initialize logger
 	var logger *zap.Logger
 	var err error
-	
+
 	switch *logLevel {
 	case "debug":
 		logger, err = zap.NewDevelopment()
 	default:
 		logger, err = zap.NewProduction()
 	}
-	
+
 	if err != nil {
 		panic("failed to create logger: " + err.Error())
 	}
