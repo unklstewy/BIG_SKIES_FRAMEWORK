@@ -35,6 +35,7 @@ const (
 	CoordinatorPlugin      = "plugin"
 	CoordinatorTelescope   = "telescope"
 	CoordinatorUIElement   = "uielement"
+	CoordinatorASCOM       = "ascom"
 )
 
 // TopicBuilder helps construct topic strings following conventions.
