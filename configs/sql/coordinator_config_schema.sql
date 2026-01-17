@@ -18,7 +18,7 @@ CREATE TABLE coordinator_config (
     is_secret BOOLEAN DEFAULT false NOT NULL,  -- Marks sensitive values (passwords, keys)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_by UUID REFERENCES users(id),  -- Track who made changes
+    updated_by UUID,  -- Track who made changes (FK to users table added later)
     CONSTRAINT unique_coordinator_config UNIQUE (coordinator_name, config_key)
 );
 
@@ -36,7 +36,7 @@ CREATE TABLE coordinator_config_history (
     old_value JSONB,
     new_value JSONB NOT NULL,
     changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    changed_by UUID REFERENCES users(id)
+    changed_by UUID  -- FK to users table added later
 );
 
 -- Index for history queries
@@ -83,17 +83,17 @@ INSERT INTO coordinator_config (coordinator_name, config_key, config_value, conf
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description, is_secret) VALUES
     ('security-coordinator', 'database_url', '"postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
     ('security-coordinator', 'jwt_secret', '"change-this-secret-in-production"', 'string', 'JWT signing secret', true),
-    ('security-coordinator', 'token_duration', '3600', 'int', 'JWT token validity duration in seconds'),
-    ('security-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address'),
-    ('security-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port');
+    ('security-coordinator', 'token_duration', '3600', 'int', 'JWT token validity duration in seconds', false),
+    ('security-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address', false),
+    ('security-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port', false);
 
 -- Telescope Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description, is_secret) VALUES
     ('telescope-coordinator', 'database_url', '"postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
-    ('telescope-coordinator', 'discovery_port', '32227', 'int', 'ASCOM Alpaca discovery port'),
-    ('telescope-coordinator', 'health_check_interval', '30', 'int', 'Device health check interval in seconds'),
-    ('telescope-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address'),
-    ('telescope-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port');
+    ('telescope-coordinator', 'discovery_port', '32227', 'int', 'ASCOM Alpaca discovery port', false),
+    ('telescope-coordinator', 'health_check_interval', '30', 'int', 'Device health check interval in seconds', false),
+    ('telescope-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address', false),
+    ('telescope-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port', false);
 
 -- Plugin Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description) VALUES
@@ -104,11 +104,11 @@ INSERT INTO coordinator_config (coordinator_name, config_key, config_value, conf
 
 -- DataStore Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description, is_secret) VALUES
-    ('datastore-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address'),
-    ('datastore-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port'),
+    ('datastore-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address', false),
+    ('datastore-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port', false),
     ('datastore-coordinator', 'database_url', '"postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
-    ('datastore-coordinator', 'max_connections', '20', 'int', 'Maximum database connections in pool'),
-    ('datastore-coordinator', 'min_connections', '5', 'int', 'Minimum database connections in pool');
+    ('datastore-coordinator', 'max_connections', '20', 'int', 'Maximum database connections in pool', false),
+    ('datastore-coordinator', 'min_connections', '5', 'int', 'Minimum database connections in pool', false);
 
 -- UIElement Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description) VALUES

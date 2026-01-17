@@ -15,8 +15,13 @@ import (
 
 func main() {
 	// Parse command line flags
+	// Default to postgres:5432 for Docker, but allow override via flag or env var
+	defaultDBURL := "postgresql://bigskies:bigskies_dev_password@postgres:5432/bigskies?sslmode=disable"
+	if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
+		defaultDBURL = envURL
+	}
 	brokerURL := flag.String("broker-url", "tcp://mqtt-broker:1883", "MQTT broker URL")
-	databaseURL := flag.String("database-url", "postgres://localhost:5432/bigskies", "PostgreSQL connection URL")
+	databaseURL := flag.String("database-url", defaultDBURL, "PostgreSQL connection URL")
 	maxConns := flag.Int("max-connections", 25, "Maximum database connections")
 	minConns := flag.Int("min-connections", 5, "Minimum database connections")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -65,11 +70,11 @@ func main() {
 	}
 
 	// Setup context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	startCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Start coordinator
-	if err := coordinator.Start(ctx); err != nil {
+	if err := coordinator.Start(startCtx); err != nil {
 		logger.Fatal("Failed to start coordinator", zap.Error(err))
 	}
 

@@ -12,6 +12,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -112,9 +113,21 @@ type MigrationConfig struct {
 
 // DefaultBootstrapConfig returns a bootstrap configuration with sensible defaults.
 func DefaultBootstrapConfig() *BootstrapConfig {
+	// Use postgres hostname for Docker, localhost for development
+	// Can be overridden by DATABASE_URL environment variable
+	dbHost := "postgres"
+	if os.Getenv("DB_HOST") != "" {
+		dbHost = os.Getenv("DB_HOST")
+	}
+
+	mqttHost := "mqtt-broker"
+	if os.Getenv("MQTT_HOST") != "" {
+		mqttHost = os.Getenv("MQTT_HOST")
+	}
+
 	return &BootstrapConfig{
 		Database: DatabaseConfig{
-			Host:           "localhost",
+			Host:           dbHost,
 			Port:           5432,
 			Name:           "bigskies",
 			User:           "bigskies",
@@ -123,7 +136,7 @@ func DefaultBootstrapConfig() *BootstrapConfig {
 			MinConnections: 5,
 		},
 		MQTT: MQTTConfig{
-			BrokerURL:  "localhost",
+			BrokerURL:  mqttHost,
 			BrokerPort: 1883,
 			ClientID:   "bootstrap-coordinator",
 		},

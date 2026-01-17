@@ -18,7 +18,12 @@ import (
 
 func main() {
 	// Parse command line flags
-	databaseURL := flag.String("database-url", "postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable", "PostgreSQL connection string")
+	// Default to postgres:5432 for Docker, but allow override via flag or env var
+	defaultDBURL := "postgresql://bigskies:bigskies_dev_password@postgres:5432/bigskies?sslmode=disable"
+	if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
+		defaultDBURL = envURL
+	}
+	databaseURL := flag.String("database-url", defaultDBURL, "PostgreSQL connection string")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flag.Parse()
 
@@ -106,7 +111,7 @@ func main() {
 	defer cancel()
 
 	// Start coordinator
-	if err := coordinator.Start(ctx); err != nil {
+	if err := coordinator.Start(startCtx); err != nil {
 		logger.Fatal("Failed to start coordinator", zap.Error(err))
 	}
 

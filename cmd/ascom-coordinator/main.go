@@ -88,11 +88,11 @@ func main() {
 	}
 
 	// Setup context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	startCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Start coordinator
-	if err := coordinator.Start(ctx); err != nil {
+	if err := coordinator.Start(startCtx); err != nil {
 		logger.Fatal("Failed to start coordinator", zap.Error(err))
 	}
 

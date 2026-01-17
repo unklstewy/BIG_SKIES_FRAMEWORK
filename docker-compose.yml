@@ -60,8 +60,8 @@ services:
       - ./configs:/app/configs:ro
     environment:
       - LOG_LEVEL=info
+      - DATABASE_URL=postgresql://bigskies:bigskies_dev_password@postgres:5432/bigskies?sslmode=disable
     command: [
-      "--config", "/app/configs/bootstrap.yaml",
       "--pgpass", "/shared/secrets/.pgpass",
       "--log-level", "info"
     ]
@@ -107,6 +107,13 @@ services:
       - ./configs:/app/configs:ro
     environment:
       - LOG_LEVEL=info
+    command: [
+      "--broker-host", "mqtt-broker",
+      "--broker-port", "1883",
+      "--database-url", "postgresql://bigskies:bigskies_dev_password@postgres:5432/bigskies?sslmode=disable",
+      "--jwt-secret", "dev-secret-change-in-production-12345678",
+      "--log-level", "info"
+    ]
     networks:
       - bigskies
     restart: unless-stopped
