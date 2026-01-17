@@ -46,3 +46,6 @@ go.work.sum
 
 # Database backups
 backups/
+
+# Agent Artifacts and Directives
+WARP.md
