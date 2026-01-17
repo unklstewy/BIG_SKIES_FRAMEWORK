@@ -1,0 +1,1 @@
+Updated .gitignore to remove some build artifacts that don't need to be in the repo.
