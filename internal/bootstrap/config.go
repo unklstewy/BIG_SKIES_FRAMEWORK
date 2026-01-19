@@ -163,6 +163,7 @@ func DefaultBootstrapConfig() *BootstrapConfig {
 				"coordinator_config_schema.sql",
 				"security_schema.sql",
 				"telescope_schema.sql",
+				"message_rbac_schema.sql",
 			},
 		},
 	}

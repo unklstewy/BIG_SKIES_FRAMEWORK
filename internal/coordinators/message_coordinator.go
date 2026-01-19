@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/config"
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/models"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/healthcheck"
 	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/pkg/mqtt"
 	"go.uber.org/zap"
@@ -19,7 +22,9 @@ type MessageCoordinator struct {
 	*BaseCoordinator
 	config           *MessageCoordinatorConfig
 	subscribedTopics map[string]bool
-	configLoader     *config.Loader // Database configuration loader
+	configLoader     *config.Loader                    // Database configuration loader
+	protectionRules  []models.TopicProtectionRule      // RBAC protection rules
+	pendingMessages  map[string]*models.PendingMessage // Messages awaiting validation
 	mu               sync.RWMutex
 }
 
@@ -55,6 +60,7 @@ func NewMessageCoordinator(config *MessageCoordinatorConfig, logger *zap.Logger)
 		BaseCoordinator:  base,
 		config:           config,
 		subscribedTopics: make(map[string]bool),
+		pendingMessages:  make(map[string]*models.PendingMessage),
 	}
 
 	// Register self health check
@@ -69,6 +75,16 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 		zap.String("broker", mc.config.BrokerURL),
 		zap.Int("port", mc.config.BrokerPort))
 
+	// Wait for credentials if database access needed
+	if _, err := mc.WaitForCredentials(ctx, 30*time.Second); err != nil {
+		return err
+	}
+
+	// Load protection rules from database
+	if err := mc.loadProtectionRules(ctx); err != nil {
+		return fmt.Errorf("failed to load protection rules: %w", err)
+	}
+
 	// Start base coordinator
 	if err := mc.BaseCoordinator.Start(ctx); err != nil {
 		return err
@@ -79,9 +95,19 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to health topics: %w", err)
 	}
 
+	// Subscribe to all coordinator topics for RBAC interception
+	if err := mc.subscribeCoordinatorTopics(); err != nil {
+		return fmt.Errorf("failed to subscribe to coordinator topics: %w", err)
+	}
+
 	// Subscribe to configuration update topic
 	if err := mc.subscribeConfigTopic(); err != nil {
 		return fmt.Errorf("failed to subscribe to config topic: %w", err)
+	}
+
+	// Subscribe to RBAC validation response topic
+	if err := mc.subscribeRBACResponseTopic(); err != nil {
+		return fmt.Errorf("failed to subscribe to RBAC response topic: %w", err)
 	}
 
 	// Start health status publishing
@@ -320,6 +346,241 @@ func (mc *MessageCoordinator) handleConfigUpdate(topic string, payload []byte) e
 		zap.Int("max_reconnect_attempts", maxReconnectAttempts))
 
 	return nil
+}
+
+// loadProtectionRules loads RBAC protection rules from the database.
+func (mc *MessageCoordinator) loadProtectionRules(ctx context.Context) error {
+	// Create config loader if not set
+	if mc.configLoader == nil {
+		// We need to create a pool here. For now, assume it's set via SetConfigLoader
+		return fmt.Errorf("config loader not set")
+	}
+
+	rules, err := mc.configLoader.LoadTopicProtectionRules(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load protection rules: %w", err)
+	}
+
+	mc.mu.Lock()
+	mc.protectionRules = rules
+	mc.mu.Unlock()
+
+	mc.GetLogger().Info("Loaded protection rules",
+		zap.Int("count", len(rules)))
+
+	return nil
+}
+
+// subscribeCoordinatorTopics subscribes to all coordinator topics for RBAC interception.
+func (mc *MessageCoordinator) subscribeCoordinatorTopics() error {
+	// Subscribe to wildcard topic for all coordinator messages
+	topic := "bigskies/coordinator/+/+/+" // coordinator/{name}/{action}/{resource}
+	return mc.subscribe(topic, mc.handleCoordinatorMessage)
+}
+
+// subscribeRBACResponseTopic subscribes to RBAC validation response topic.
+func (mc *MessageCoordinator) subscribeRBACResponseTopic() error {
+	topic := "bigskies/coordinator/security/rbac/response"
+	return mc.subscribe(topic, mc.handleRBACResponse)
+}
+
+// handleCoordinatorMessage processes incoming coordinator messages for RBAC validation.
+func (mc *MessageCoordinator) handleCoordinatorMessage(topic string, payload []byte) error {
+	mc.GetLogger().Debug("Received coordinator message",
+		zap.String("topic", topic),
+		zap.Int("size", len(payload)))
+
+	// Skip health and status messages
+	if strings.Contains(topic, "/health/") || strings.Contains(topic, "/status/") {
+		// Forward directly without validation
+		return mc.forwardMessage(topic, payload)
+	}
+
+	// Check if topic matches protection rules
+	rule := mc.findMatchingRule(topic)
+	if rule == nil {
+		// No protection rule, forward directly
+		return mc.forwardMessage(topic, payload)
+	}
+
+	// Extract user context from message
+	userContext, err := mc.extractUserContext(payload)
+	if err != nil {
+		mc.GetLogger().Warn("Failed to extract user context, rejecting message",
+			zap.String("topic", topic),
+			zap.Error(err))
+		return err
+	}
+
+	// Create RBAC validation request
+	correlationID := generateCorrelationID()
+	request := models.RBACValidationRequest{
+		CorrelationID: correlationID,
+		UserID:        userContext.UserID,
+		Resource:      rule.Resource,
+		Action:        rule.Action,
+		Context:       userContext,
+		Timestamp:     time.Now(),
+	}
+
+	// Store pending message
+	pending := &models.PendingMessage{
+		ID:            correlationID,
+		OriginalTopic: topic,
+		Payload:       payload,
+		UserContext:   userContext,
+		CorrelationID: correlationID,
+		ReceivedAt:    time.Now(),
+		ExpiresAt:     time.Now().Add(30 * time.Second), // 30 second timeout
+	}
+
+	mc.mu.Lock()
+	mc.pendingMessages[correlationID] = pending
+	mc.mu.Unlock()
+
+	// Send validation request to security coordinator
+	if err := mc.sendRBACValidationRequest(request); err != nil {
+		mc.GetLogger().Error("Failed to send RBAC validation request",
+			zap.String("correlation_id", correlationID),
+			zap.Error(err))
+		// Remove pending message
+		mc.mu.Lock()
+		delete(mc.pendingMessages, correlationID)
+		mc.mu.Unlock()
+		return err
+	}
+
+	mc.GetLogger().Debug("Sent RBAC validation request",
+		zap.String("correlation_id", correlationID),
+		zap.String("resource", rule.Resource),
+		zap.String("action", rule.Action))
+
+	return nil
+}
+
+// handleRBACResponse processes RBAC validation responses from security coordinator.
+func (mc *MessageCoordinator) handleRBACResponse(topic string, payload []byte) error {
+	// Unmarshal response
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		mc.GetLogger().Error("Failed to unmarshal RBAC response envelope", zap.Error(err))
+		return err
+	}
+
+	var response models.RBACValidationResponse
+	if err := msg.UnmarshalPayload(&response); err != nil {
+		mc.GetLogger().Error("Failed to unmarshal RBAC response payload", zap.Error(err))
+		return err
+	}
+
+	// Find pending message
+	mc.mu.Lock()
+	pending, exists := mc.pendingMessages[response.CorrelationID]
+	delete(mc.pendingMessages, response.CorrelationID) // Remove regardless
+	mc.mu.Unlock()
+
+	if !exists {
+		mc.GetLogger().Warn("Received RBAC response for unknown correlation ID",
+			zap.String("correlation_id", response.CorrelationID))
+		return nil
+	}
+
+	if response.Allowed {
+		// Forward the message
+		if err := mc.forwardMessage(pending.OriginalTopic, pending.Payload); err != nil {
+			mc.GetLogger().Error("Failed to forward validated message",
+				zap.String("correlation_id", response.CorrelationID),
+				zap.Error(err))
+			return err
+		}
+		mc.GetLogger().Debug("Forwarded validated message",
+			zap.String("correlation_id", response.CorrelationID))
+	} else {
+		// Log security event
+		mc.GetLogger().Warn("RBAC validation denied",
+			zap.String("correlation_id", response.CorrelationID),
+			zap.String("reason", response.Reason),
+			zap.String("user_id", pending.UserContext.UserID),
+			zap.String("topic", pending.OriginalTopic))
+		// Message is rejected (not forwarded)
+	}
+
+	return nil
+}
+
+// findMatchingRule finds the protection rule that matches the given topic.
+func (mc *MessageCoordinator) findMatchingRule(topic string) *models.TopicProtectionRule {
+	mc.mu.RLock()
+	defer mc.mu.RUnlock()
+
+	for _, rule := range mc.protectionRules {
+		if mc.topicMatchesPattern(topic, rule.TopicPattern) {
+			return &rule
+		}
+	}
+	return nil
+}
+
+// topicMatchesPattern checks if a topic matches a pattern (simple wildcard matching).
+func (mc *MessageCoordinator) topicMatchesPattern(topic, pattern string) bool {
+	// Simple implementation: replace + with .* and match as regex
+	// For production, consider a more robust pattern matching library
+	pattern = strings.ReplaceAll(pattern, "+", ".*")
+	matched, _ := regexp.MatchString("^"+pattern+"$", topic)
+	return matched
+}
+
+// extractUserContext extracts user authentication context from message payload.
+func (mc *MessageCoordinator) extractUserContext(payload []byte) (models.UserContext, error) {
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		return models.UserContext{}, fmt.Errorf("failed to unmarshal message envelope: %w", err)
+	}
+
+	// For now, assume user context is in message metadata or payload
+	// This is a placeholder - actual implementation depends on how auth is passed
+	context := models.UserContext{
+		UserID: "anonymous", // Default
+	}
+
+	// Try to extract from payload if it's a map
+	var payloadData map[string]interface{}
+	if err := msg.UnmarshalPayload(&payloadData); err == nil {
+		if userID, ok := payloadData["user_id"].(string); ok {
+			context.UserID = userID
+		}
+		if username, ok := payloadData["username"].(string); ok {
+			context.Username = username
+		}
+		if token, ok := payloadData["token"].(string); ok {
+			context.Token = token
+		}
+	}
+
+	return context, nil
+}
+
+// sendRBACValidationRequest sends a validation request to the security coordinator.
+func (mc *MessageCoordinator) sendRBACValidationRequest(request models.RBACValidationRequest) error {
+	topic := "bigskies/coordinator/security/rbac/validate"
+	msg, err := mqtt.NewMessage(mqtt.MessageTypeRequest, "coordinator:message", request)
+	if err != nil {
+		return fmt.Errorf("failed to create validation request message: %w", err)
+	}
+
+	return mc.GetMQTTClient().PublishJSON(topic, 1, false, msg)
+}
+
+// forwardMessage forwards a message to its original destination.
+func (mc *MessageCoordinator) forwardMessage(topic string, payload []byte) error {
+	// For interception, we need to republish to the same topic
+	// In a real implementation, this might need special handling to avoid loops
+	return mc.GetMQTTClient().Publish(topic, 1, false, payload)
+}
+
+// generateCorrelationID generates a unique correlation ID for requests.
+func generateCorrelationID() string {
+	return fmt.Sprintf("rbac-%d", time.Now().UnixNano())
 }
 
 // Name returns the coordinator name.

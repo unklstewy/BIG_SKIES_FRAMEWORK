@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/unklstewy/BIG_SKIES_FRAMEWORK/internal/models"
 )
 
 // ConfigValue represents a single configuration value from the database.
@@ -479,4 +480,44 @@ func ParseConfigValueString(valueStr string, configType string) (interface{}, er
 	default:
 		return nil, fmt.Errorf("unknown config type: %s", configType)
 	}
+}
+
+// LoadTopicProtectionRules loads all enabled topic protection rules from the database.
+func (l *Loader) LoadTopicProtectionRules(ctx context.Context) ([]models.TopicProtectionRule, error) {
+	query := `
+		SELECT id, topic_pattern, resource, action, enabled, created_at, updated_at
+		FROM topic_protection_rules
+		WHERE enabled = true
+		ORDER BY topic_pattern
+	`
+
+	rows, err := l.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query topic protection rules: %w", err)
+	}
+	defer rows.Close()
+
+	var rules []models.TopicProtectionRule
+	for rows.Next() {
+		var rule models.TopicProtectionRule
+		err := rows.Scan(
+			&rule.ID,
+			&rule.TopicPattern,
+			&rule.Resource,
+			&rule.Action,
+			&rule.Enabled,
+			&rule.CreatedAt,
+			&rule.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan topic protection rule: %w", err)
+		}
+		rules = append(rules, rule)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating topic protection rule rows: %w", err)
+	}
+
+	return rules, nil
 }
