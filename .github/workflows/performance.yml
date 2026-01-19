@@ -124,7 +124,7 @@ jobs:
         cat load_test_results.txt
 
     - name: Upload load test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v6
       with:
         name: load-test-results
         path: load_test_results.txt
