@@ -96,6 +96,8 @@ install-tools:
 
 # Docker targets
 docker-build:
+	@echo "Building centralized build image..."
+	@docker build -f deployments/docker/Dockerfile.build -t bigskies-build:latest .
 	@echo "Building Docker images..."
 	@echo "Ensuring .pgpass is in shared volume..."
 	@./scripts/update-pgpass.sh || echo "Warning: Could not update .pgpass (continuing anyway)"

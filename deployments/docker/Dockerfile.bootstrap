@@ -1,24 +1,5 @@
 # BIG SKIES Framework - Bootstrap Coordinator Dockerfile
-FROM golang:1.25-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git make
-
-# Set working directory
-WORKDIR /build
-
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build the bootstrap coordinator
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
-    -ldflags="-w -s" \
-    -o bootstrap-coordinator \
-    ./cmd/bootstrap-coordinator
+FROM bigskies-build:latest AS builder
 
 # Runtime stage
 FROM alpine:latest
@@ -34,10 +15,10 @@ RUN addgroup -g 1000 bigskies && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /build/bootstrap-coordinator /app/
+COPY --from=builder /artifacts/go/bootstrap-coordinator /app/
 
 # Copy configs (will be overridden by volume mount)
-COPY configs /app/configs
+COPY --from=builder /artifacts/configs /app/configs
 
 # Create .pgpass file in shared volume (done by init script or manual setup)
 # The actual .pgpass should be provided via volume mount

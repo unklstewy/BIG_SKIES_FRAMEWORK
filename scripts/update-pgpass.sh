@@ -6,7 +6,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PGPASS_FILE="$PROJECT_ROOT/.pgpass"
-VOLUME_NAME="bigskies_shared_secrets"
+VOLUME_NAME="big_skies_framework_shared_secrets"
 
 echo "BIG SKIES Framework - Update .pgpass in Docker Volume"
 echo "======================================================"

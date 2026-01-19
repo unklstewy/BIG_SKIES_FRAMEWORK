@@ -324,14 +324,14 @@ func (bc *BaseCoordinator) WaitForCredentials(ctx context.Context, timeout time.
 	case pgpassPath := <-bc.credentialsChan:
 		bc.logger.Info("Received credentials from bootstrap coordinator")
 
-		// Load credentials from .pgpass file
+		// Load credentials from .pgpass file at the specified path
 		dbConfig := &bootstrap.DatabaseConfig{
 			Host: "postgres",
 			Port: 5432,
 			Name: "bigskies",
 			User: "bigskies",
 		}
-		creds, err := bootstrap.LoadCredentials(dbConfig)
+		creds, err := bootstrap.LoadCredentialsFromPath(pgpassPath, dbConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load credentials from %s: %w", pgpassPath, err)
 		}
@@ -401,11 +401,11 @@ func (bc *BaseCoordinator) HasDatabaseCredentials() bool {
 func (bc *BaseCoordinator) GetDatabaseURL() (string, error) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	
+
 	if !bc.credentialsLoaded || bc.dbCredentials == nil {
 		return "", fmt.Errorf("credentials not loaded")
 	}
-	
+
 	return bc.dbCredentials.ConnectionURL("disable"), nil
 }
 

@@ -120,7 +120,6 @@ func main() {
 	// Inject config loader for runtime updates
 	coordinator.SetConfigLoader(configLoader)
 
-	
 	// Setup context with cancellation
 	startCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()

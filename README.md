@@ -61,9 +61,12 @@ make lint           # Run linters
 make fmt            # Format code
 ```
 
+**Build Optimization**: The Docker build process uses a centralized build image that compiles all Go binaries and ASCOM components once, then distributes them to individual containers. This significantly reduces build times compared to building each container independently.
+
 ### Running Services
 
 ```bash
+make docker-build   # Build optimized Docker images
 make docker-up      # Start all services
 make docker-logs    # View logs
 make docker-down    # Stop all services

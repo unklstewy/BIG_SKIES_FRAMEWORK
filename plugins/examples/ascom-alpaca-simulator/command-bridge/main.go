@@ -93,19 +93,19 @@ func main() {
 func subscribeToCommands(client mqtt.Client) {
 	// Subscribe to plugin-specific command topic
 	commandTopic := fmt.Sprintf("bigskies/plugin/%s/command/#", pluginID)
-	
+
 	token := client.Subscribe(commandTopic, 1, handleCommand)
 	if token.Wait() && token.Error() != nil {
 		log.Fatalf("Failed to subscribe to commands: %v", token.Error())
 	}
-	
+
 	log.Printf("Subscribed to: %s", commandTopic)
 }
 
 // handleCommand processes incoming MQTT commands
 func handleCommand(client mqtt.Client, msg mqtt.Message) {
 	log.Printf("Received command on topic: %s", msg.Topic())
-	
+
 	var cmd Command
 	if err := json.Unmarshal(msg.Payload(), &cmd); err != nil {
 		log.Printf("Failed to parse command: %v", err)
@@ -115,14 +115,14 @@ func handleCommand(client mqtt.Client, msg mqtt.Message) {
 	// Extract device type and action from topic
 	// Topic format: bigskies/plugin/{id}/command/{device}/{action}
 	// e.g., bigskies/plugin/{id}/command/telescope/slew
-	
+
 	// For now, determine from device_id or explicit fields
 	deviceType := cmd.DeviceType
 	if deviceType == "" && cmd.DeviceID != "" {
 		// Parse from device_id (format: host:port-devicetype-number)
 		deviceType = "telescope" // Default for now
 	}
-	
+
 	// Route to appropriate handler
 	switch cmd.Action {
 	case "slew", "slew_to_coordinates":
@@ -147,31 +147,31 @@ func handleCommand(client mqtt.Client, msg mqtt.Message) {
 // handleSlewCommand sends slew command to ASCOM API
 func handleSlewCommand(cmd Command, deviceType string) {
 	log.Printf("Slewing %s to RA: %.4f, Dec: %.4f", deviceType, cmd.RightAscension, cmd.Declination)
-	
+
 	deviceNum := cmd.DeviceNumber
 	apiURL := fmt.Sprintf("%s/%s/%d/slewtocoordinatesasync", ascomBaseURL, deviceType, deviceNum)
-	
+
 	// Build form data - ALL parameters in body for PUT
 	formData := url.Values{}
 	formData.Set("RightAscension", fmt.Sprintf("%.6f", cmd.RightAscension))
 	formData.Set("Declination", fmt.Sprintf("%.6f", cmd.Declination))
 	formData.Set("ClientID", "1")
 	formData.Set("ClientTransactionID", fmt.Sprintf("%d", time.Now().Unix()))
-	
+
 	req, err := http.NewRequest(http.MethodPut, apiURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		log.Printf("Failed to create slew request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to slew: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Slew response: %s", string(body))
 }
@@ -179,29 +179,29 @@ func handleSlewCommand(cmd Command, deviceType string) {
 // handleParkCommand sends park command to ASCOM API
 func handleParkCommand(cmd Command, deviceType string) {
 	log.Printf("Parking %s", deviceType)
-	
+
 	deviceNum := cmd.DeviceNumber
 	apiURL := fmt.Sprintf("%s/%s/%d/park", ascomBaseURL, deviceType, deviceNum)
-	
+
 	// Build form data - ALL parameters in body for PUT
 	formData := url.Values{}
 	formData.Set("ClientID", "1")
 	formData.Set("ClientTransactionID", fmt.Sprintf("%d", time.Now().Unix()))
-	
+
 	req, err := http.NewRequest(http.MethodPut, apiURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		log.Printf("Failed to create park request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to park: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Park response: %s", string(body))
 }
@@ -209,29 +209,29 @@ func handleParkCommand(cmd Command, deviceType string) {
 // handleUnparkCommand sends unpark command to ASCOM API
 func handleUnparkCommand(cmd Command, deviceType string) {
 	log.Printf("Unparking %s", deviceType)
-	
+
 	deviceNum := cmd.DeviceNumber
 	apiURL := fmt.Sprintf("%s/%s/%d/unpark", ascomBaseURL, deviceType, deviceNum)
-	
+
 	// Build form data - ALL parameters in body for PUT
 	formData := url.Values{}
 	formData.Set("ClientID", "1")
 	formData.Set("ClientTransactionID", fmt.Sprintf("%d", time.Now().Unix()))
-	
+
 	req, err := http.NewRequest(http.MethodPut, apiURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		log.Printf("Failed to create unpark request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to unpark: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Unpark response: %s", string(body))
 }
@@ -239,30 +239,30 @@ func handleUnparkCommand(cmd Command, deviceType string) {
 // handleTrackingCommand sets tracking on/off
 func handleTrackingCommand(cmd Command, deviceType string) {
 	log.Printf("Setting tracking to: %v", cmd.Tracking)
-	
+
 	deviceNum := cmd.DeviceNumber
 	apiURL := fmt.Sprintf("%s/%s/%d/tracking", ascomBaseURL, deviceType, deviceNum)
-	
+
 	// Build form data - ALL parameters in body for PUT
 	formData := url.Values{}
 	formData.Set("Tracking", fmt.Sprintf("%t", cmd.Tracking))
 	formData.Set("ClientID", "1")
 	formData.Set("ClientTransactionID", fmt.Sprintf("%d", time.Now().Unix()))
-	
+
 	req, err := http.NewRequest(http.MethodPut, apiURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		log.Printf("Failed to create tracking request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to set tracking: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Tracking response: %s", string(body))
 }
@@ -270,29 +270,29 @@ func handleTrackingCommand(cmd Command, deviceType string) {
 // handleAbortCommand aborts current operation
 func handleAbortCommand(cmd Command, deviceType string) {
 	log.Printf("Aborting %s operation", deviceType)
-	
+
 	deviceNum := cmd.DeviceNumber
 	apiURL := fmt.Sprintf("%s/%s/%d/abortslew", ascomBaseURL, deviceType, deviceNum)
-	
+
 	// Build form data - ALL parameters in body for PUT
 	formData := url.Values{}
 	formData.Set("ClientID", "1")
 	formData.Set("ClientTransactionID", fmt.Sprintf("%d", time.Now().Unix()))
-	
+
 	req, err := http.NewRequest(http.MethodPut, apiURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		log.Printf("Failed to create abort request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to abort: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Abort response: %s", string(body))
 }
@@ -300,30 +300,30 @@ func handleAbortCommand(cmd Command, deviceType string) {
 // handleConnectCommand connects to device
 func handleConnectCommand(cmd Command, deviceType string) {
 	log.Printf("Connecting to %s", deviceType)
-	
+
 	deviceNum := cmd.DeviceNumber
 	apiURL := fmt.Sprintf("%s/%s/%d/connected", ascomBaseURL, deviceType, deviceNum)
-	
+
 	// Build form data - ALL parameters in body for PUT
 	formData := url.Values{}
 	formData.Set("Connected", "true")
 	formData.Set("ClientID", "1")
 	formData.Set("ClientTransactionID", fmt.Sprintf("%d", time.Now().Unix()))
-	
+
 	req, err := http.NewRequest(http.MethodPut, apiURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		log.Printf("Failed to create connect request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to connect: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Connect response: %s", string(body))
 }
@@ -331,30 +331,30 @@ func handleConnectCommand(cmd Command, deviceType string) {
 // handleDisconnectCommand disconnects from device
 func handleDisconnectCommand(cmd Command, deviceType string) {
 	log.Printf("Disconnecting from %s", deviceType)
-	
+
 	deviceNum := cmd.DeviceNumber
 	apiURL := fmt.Sprintf("%s/%s/%d/connected", ascomBaseURL, deviceType, deviceNum)
-	
+
 	// Build form data - ALL parameters in body for PUT
 	formData := url.Values{}
 	formData.Set("Connected", "false")
 	formData.Set("ClientID", "1")
 	formData.Set("ClientTransactionID", fmt.Sprintf("%d", time.Now().Unix()))
-	
+
 	req, err := http.NewRequest(http.MethodPut, apiURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		log.Printf("Failed to create disconnect request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to disconnect: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Disconnect response: %s", string(body))
 }

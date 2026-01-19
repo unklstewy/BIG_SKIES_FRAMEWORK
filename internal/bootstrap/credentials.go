@@ -37,8 +37,14 @@ type Credentials struct {
 // 2. Environment variables (DATABASE_URL or individual PG* variables)
 // 3. Error if no credentials found
 func LoadCredentials(dbConfig *DatabaseConfig) (*Credentials, error) {
+	return LoadCredentialsFromPath("", dbConfig)
+}
+
+// LoadCredentialsFromPath attempts to load database credentials with a custom .pgpass path.
+// If pgpassPath is empty, uses the standard .pgpass file locations.
+func LoadCredentialsFromPath(pgpassPath string, dbConfig *DatabaseConfig) (*Credentials, error) {
 	// Try loading from .pgpass first
-	creds, err := LoadFromPgpass(dbConfig.Host, dbConfig.Port, dbConfig.Name, dbConfig.User)
+	creds, err := LoadFromPgpassFile(pgpassPath, dbConfig.Host, dbConfig.Port, dbConfig.Name, dbConfig.User)
 	if err == nil {
 		return creds, nil
 	}
@@ -65,31 +71,33 @@ func LoadCredentials(dbConfig *DatabaseConfig) (*Credentials, error) {
 	return nil, fmt.Errorf("failed to load credentials: tried .pgpass and environment variables")
 }
 
-// LoadFromPgpass loads credentials from PostgreSQL .pgpass file.
+// LoadFromPgpassFile loads credentials from PostgreSQL .pgpass file at a specific path.
 //
 // The .pgpass file format is: hostname:port:database:username:password
 // Lines starting with # are comments. Wildcards (*) are supported for any field.
 //
-// File location priority:
+// If pgpassPath is empty, uses standard .pgpass file locations:
 // 1. $PGPASSFILE environment variable
 // 2. ~/.pgpass (Unix/macOS)
 // 3. %APPDATA%\postgresql\pgpass.conf (Windows)
-func LoadFromPgpass(host string, port int, database, user string) (*Credentials, error) {
+func LoadFromPgpassFile(pgpassPath string, host string, port int, database, user string) (*Credentials, error) {
 	// Determine .pgpass file location
-	pgpassFile := os.Getenv("PGPASSFILE")
-	if pgpassFile == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
+	if pgpassPath == "" {
+		pgpassPath = os.Getenv("PGPASSFILE")
+		if pgpassPath == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get home directory: %w", err)
+			}
+			pgpassPath = filepath.Join(home, ".pgpass")
 		}
-		pgpassFile = filepath.Join(home, ".pgpass")
 	}
 
 	// Check if file exists
-	fileInfo, err := os.Stat(pgpassFile)
+	fileInfo, err := os.Stat(pgpassPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf(".pgpass file not found at %s", pgpassFile)
+			return nil, fmt.Errorf(".pgpass file not found at %s", pgpassPath)
 		}
 		return nil, fmt.Errorf("failed to stat .pgpass file: %w", err)
 	}
@@ -101,7 +109,7 @@ func LoadFromPgpass(host string, port int, database, user string) (*Credentials,
 	}
 
 	// Open and parse the file
-	file, err := os.Open(pgpassFile)
+	file, err := os.Open(pgpassPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open .pgpass file: %w", err)
 	}

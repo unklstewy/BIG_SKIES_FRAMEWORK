@@ -1,24 +1,5 @@
-# BIG SKIES Framework - Security Dockerfile
-FROM golang:1.25-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git make
-
-# Set working directory
-WORKDIR /build
-
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build the coordinator
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
-    -ldflags="-w -s" \
-    -o security-coordinator \
-    ./cmd/security-coordinator
+# BIG SKIES Framework - Security Coordinator Dockerfile
+FROM bigskies-build:latest AS builder
 
 # Runtime stage
 FROM alpine:latest
@@ -34,10 +15,10 @@ RUN addgroup -g 1000 bigskies && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /build/security-coordinator /app/
+COPY --from=builder /artifacts/go/security-coordinator /app/
 
 # Copy configs (will be overridden by volume mount)
-COPY configs /app/configs
+COPY --from=builder /artifacts/configs /app/configs
 
 # Change ownership
 RUN chown -R bigskies:bigskies /app

@@ -36,18 +36,11 @@ COPY external/ASCOM.Alpaca.Simulators/ .
 WORKDIR /app/ASCOM.Alpaca.Simulators
 RUN dotnet publish -c Release -o out
 
-# Stage 2: Build Go health reporter
-FROM golang:1.24-alpine AS health-reporter-builder
-WORKDIR /app
-COPY plugins/examples/ascom-alpaca-simulator/health-reporter/ .
-RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux go build -o health-reporter .
+# Stage 2: Get pre-built Go components from centralized build
+FROM bigskies-build:latest AS go-components
 
-# Stage 3: Build Go config service
-FROM golang:1.24-alpine AS config-service-builder
-WORKDIR /app
-COPY plugins/examples/ascom-alpaca-simulator/config-service/ .
-RUN go mod download
+# Stage 3: Runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 RUN CGO_ENABLED=0 GOOS=linux go build -o config-service .
 
 # Stage 4: Build Go state publisher
@@ -80,16 +73,16 @@ RUN apt-get update && \
 COPY --from=ascom-builder /app/ASCOM.Alpaca.Simulators/out ./ascom/
 
 # Copy health reporter
-COPY --from=health-reporter-builder /app/health-reporter /usr/local/bin/
+COPY --from=go-components /artifacts/plugins/health-reporter /usr/local/bin/
 
 # Copy config service
-COPY --from=config-service-builder /app/config-service /usr/local/bin/
+COPY --from=go-components /artifacts/plugins/config-service /usr/local/bin/
 
 # Copy state publisher
-COPY --from=state-publisher-builder /app/state-publisher /usr/local/bin/
+COPY --from=go-components /artifacts/plugins/state-publisher /usr/local/bin/
 
 # Copy command bridge
-COPY --from=command-bridge-builder /app/command-bridge /usr/local/bin/
+COPY --from=go-components /artifacts/plugins/command-bridge /usr/local/bin/
 
 # Copy configuration files
 COPY plugins/examples/ascom-alpaca-simulator/configs/ /app/configs/

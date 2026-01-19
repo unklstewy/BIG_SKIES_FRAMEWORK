@@ -90,7 +90,7 @@ make lint               # Run linters
 ### Docker
 
 ```bash
-make docker-build       # Build images
+make docker-build       # Build optimized images (centralized build)
 make docker-up          # Start services
 make docker-down        # Stop services
 make docker-restart     # Restart all services
@@ -98,6 +98,8 @@ make docker-logs        # View logs (follow mode)
 make docker-ps          # View service status
 make docker-purge       # Purge everything (DESTRUCTIVE - asks for confirmation)
 ```
+
+**Note**: `docker-build` uses an optimized build process that compiles all Go binaries and ASCOM components in a single centralized build image, then distributes them to individual containers. This is much faster than building each container independently.
 
 ### Credentials
 

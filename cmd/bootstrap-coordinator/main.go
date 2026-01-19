@@ -90,14 +90,14 @@ func main() {
 	ctx := context.Background()
 	if !*skipMigrations && !*publishOnly {
 		logger.Info("Running database migrations")
-		
+
 		// Create database pool
 		pool, err := bootstrap.CreateDatabasePool(dbURL, 5)
 		if err != nil {
 			logger.Fatal("Failed to create database pool", zap.Error(err))
 		}
 		defer pool.Close()
-		
+
 		// Run migrations
 		migrationRunner := bootstrap.NewMigrationRunner(pool, &config.Migrations, logger)
 		if err := migrationRunner.Run(ctx); err != nil {
@@ -142,7 +142,7 @@ func main() {
 		AutoReconnect:        true,
 		MaxReconnectInterval: 5 * time.Minute,
 	}
-	
+
 	mqttClient, err := mqtt.NewClient(mqttConfig, logger)
 	if err != nil {
 		logger.Fatal("Failed to create MQTT client", zap.Error(err))

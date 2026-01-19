@@ -96,6 +96,11 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 		zap.String("broker", mc.config.BrokerURL),
 		zap.Int("port", mc.config.BrokerPort))
 
+	// Start base coordinator first to connect MQTT
+	if err := mc.BaseCoordinator.Start(ctx); err != nil {
+		return err
+	}
+
 	// Wait for credentials if database access needed
 	if _, err := mc.WaitForCredentials(ctx, 30*time.Second); err != nil {
 		return err
@@ -104,11 +109,6 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 	// Load protection rules from database
 	if err := mc.loadProtectionRules(ctx); err != nil {
 		return fmt.Errorf("failed to load protection rules: %w", err)
-	}
-
-	// Start base coordinator
-	if err := mc.BaseCoordinator.Start(ctx); err != nil {
-		return err
 	}
 
 	// Subscribe to coordinator health topics

@@ -1,0 +1,94 @@
+# BIG SKIES Framework - Centralized Build Dockerfile
+# This builds all Go binaries and plugins in a single stage for efficient Docker builds
+
+FROM golang:1.25-alpine AS go-builder
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build all coordinators efficiently using separate RUN commands for better caching
+RUN mkdir -p bin
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/bootstrap-coordinator ./cmd/bootstrap-coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/datastore-coordinator ./cmd/datastore-coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/message-coordinator ./cmd/message-coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/security-coordinator ./cmd/security-coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/telescope-coordinator ./cmd/telescope-coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/application-coordinator ./cmd/application-coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/plugin-coordinator ./cmd/plugin-coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/uielement-coordinator ./cmd/uielement-coordinator
+
+# Build plugin components
+RUN cd plugins/examples/ascom-alpaca-simulator/health-reporter && go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o health-reporter .
+RUN cd plugins/examples/ascom-alpaca-simulator/config-service && go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o config-service .
+RUN cd plugins/examples/ascom-alpaca-simulator/state-publisher && go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o state-publisher .
+RUN cd plugins/examples/ascom-alpaca-simulator/command-bridge && go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o command-bridge .
+
+# Build .NET ASCOM simulators
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-builder
+WORKDIR /app
+
+# Copy the ASCOM.Alpaca.Simulators submodule
+COPY external/ASCOM.Alpaca.Simulators/NuGet.config .
+COPY external/ASCOM.Alpaca.Simulators/license.md .
+COPY external/ASCOM.Alpaca.Simulators/*.sln .
+COPY external/ASCOM.Alpaca.Simulators/ASCOM.Alpaca.Simulators/*.csproj ./ASCOM.Alpaca.Simulators/
+COPY external/ASCOM.Alpaca.Simulators/ASCOM.Alpaca.Razor/*.csproj ./ASCOM.Alpaca.Razor/
+COPY external/ASCOM.Alpaca.Simulators/ASCOM.COM.LocalServer/*.csproj ./ASCOM.COM.LocalServer/
+COPY external/ASCOM.Alpaca.Simulators/Camera.Simulator/*.csproj ./Camera.Simulator/
+COPY external/ASCOM.Alpaca.Simulators/CoverCalibratorSimulator/*.csproj ./CoverCalibratorSimulator/
+COPY external/ASCOM.Alpaca.Simulators/DomeSimulator/*.csproj ./DomeSimulator/
+COPY external/ASCOM.Alpaca.Simulators/FilterWheelSimulator/*.csproj ./FilterWheelSimulator/
+COPY external/ASCOM.Alpaca.Simulators/FocuserSimulator/*.csproj ./FocuserSimulator/
+COPY external/ASCOM.Alpaca.Simulators/ObservingConditionsSimulator/*.csproj ./ObservingConditionsSimulator/
+COPY external/ASCOM.Alpaca.Simulators/OmniSim.BaseDriver/*.csproj ./OmniSim.BaseDriver/
+COPY external/ASCOM.Alpaca.Simulators/OmniSim.SettingsAPIGenerator/*.csproj ./OmniSim.SettingsAPIGenerator/
+COPY external/ASCOM.Alpaca.Simulators/OmniSim.Tools/*.csproj ./OmniSim.Tools/
+COPY external/ASCOM.Alpaca.Simulators/RotatorSimulator/*.csproj ./RotatorSimulator/
+COPY external/ASCOM.Alpaca.Simulators/SafetyMonitorSimulator/*.csproj ./SafetyMonitorSimulator/
+COPY external/ASCOM.Alpaca.Simulators/SwitchSimulator/*.csproj ./SwitchSimulator/
+COPY external/ASCOM.Alpaca.Simulators/TelescopeSimulator/*.csproj ./TelescopeSimulator/
+COPY external/ASCOM.Alpaca.Simulators/OmniSimCOMProxy/*.csproj ./OmniSimCOMProxy/
+COPY external/ASCOM.Alpaca.Simulators/WindowsBase.Vector/*.sln ./WindowsBase.Vector/
+COPY external/ASCOM.Alpaca.Simulators/WindowsBase.Vector/WindowsBase.Vector/*.csproj ./WindowsBase.Vector/WindowsBase.Vector/
+
+RUN dotnet restore
+
+# Copy everything else and build
+COPY external/ASCOM.Alpaca.Simulators/ .
+WORKDIR /app/ASCOM.Alpaca.Simulators
+RUN dotnet publish -c Release -o out
+
+# Final stage - collect all artifacts
+FROM alpine:latest AS artifacts
+
+# Copy Go binaries
+COPY --from=go-builder /build/bin/* /artifacts/go/
+
+# Copy plugin Go binaries
+COPY --from=go-builder /build/plugins/examples/ascom-alpaca-simulator/health-reporter/health-reporter /artifacts/plugins/health-reporter
+COPY --from=go-builder /build/plugins/examples/ascom-alpaca-simulator/config-service/config-service /artifacts/plugins/config-service
+COPY --from=go-builder /build/plugins/examples/ascom-alpaca-simulator/state-publisher/state-publisher /artifacts/plugins/state-publisher
+COPY --from=go-builder /build/plugins/examples/ascom-alpaca-simulator/command-bridge/command-bridge /artifacts/plugins/command-bridge
+
+# Copy .NET ASCOM simulators
+COPY --from=dotnet-builder /app/ASCOM.Alpaca.Simulators/out /artifacts/dotnet/ascom-simulators
+
+# Copy configs
+COPY configs /artifacts/configs
+
+# Export artifacts
+CMD ["sh", "-c", "cp -r /artifacts/* /output/"]

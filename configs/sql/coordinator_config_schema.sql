@@ -67,7 +67,7 @@ CREATE TRIGGER coordinator_config_change_trigger
 
 -- Message Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description) VALUES
-    ('message-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address'),
+    ('message-coordinator', 'broker_url', '"mqtt-broker"', 'string', 'MQTT broker hostname or IP address'),
     ('message-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port'),
     ('message-coordinator', 'monitor_interval', '30', 'int', 'Health monitoring interval in seconds'),
     ('message-coordinator', 'max_reconnect_attempts', '5', 'int', 'Maximum MQTT reconnection attempts before marking unhealthy'),
@@ -76,45 +76,45 @@ INSERT INTO coordinator_config (coordinator_name, config_key, config_value, conf
 
 -- Application Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description) VALUES
-    ('application-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address'),
+    ('application-coordinator', 'broker_url', '"mqtt-broker"', 'string', 'MQTT broker hostname or IP address'),
     ('application-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port'),
     ('application-coordinator', 'registry_check_interval', '60', 'int', 'Service registry check interval in seconds'),
     ('application-coordinator', 'service_timeout', '180', 'int', 'Service heartbeat timeout in seconds');
 
 -- Security Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description, is_secret) VALUES
-    ('security-coordinator', 'database_url', '"postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
+    ('security-coordinator', 'database_url', '"postgresql://bigskies:bigskies_dev_password@postgres:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
     ('security-coordinator', 'jwt_secret', '"change-this-secret-in-production"', 'string', 'JWT signing secret', true),
     ('security-coordinator', 'token_duration', '3600', 'int', 'JWT token validity duration in seconds', false),
-    ('security-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address', false),
+    ('security-coordinator', 'broker_url', '"mqtt-broker"', 'string', 'MQTT broker hostname or IP address', false),
     ('security-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port', false);
 
 -- Telescope Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description, is_secret) VALUES
-    ('telescope-coordinator', 'database_url', '"postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
+    ('telescope-coordinator', 'database_url', '"postgresql://bigskies:bigskies_dev_password@postgres:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
     ('telescope-coordinator', 'discovery_port', '32227', 'int', 'ASCOM Alpaca discovery port', false),
     ('telescope-coordinator', 'health_check_interval', '30', 'int', 'Device health check interval in seconds', false),
-    ('telescope-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address', false),
+    ('telescope-coordinator', 'broker_url', '"mqtt-broker"', 'string', 'MQTT broker hostname or IP address', false),
     ('telescope-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port', false);
 
 -- Plugin Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description) VALUES
-    ('plugin-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address'),
+    ('plugin-coordinator', 'broker_url', '"mqtt-broker"', 'string', 'MQTT broker hostname or IP address'),
     ('plugin-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port'),
     ('plugin-coordinator', 'plugin_dir', '"/var/lib/bigskies/plugins"', 'string', 'Plugin installation directory'),
     ('plugin-coordinator', 'scan_interval', '300', 'int', 'Plugin verification scan interval in seconds');
 
 -- DataStore Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description, is_secret) VALUES
-    ('datastore-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address', false),
+    ('datastore-coordinator', 'broker_url', '"mqtt-broker"', 'string', 'MQTT broker hostname or IP address', false),
     ('datastore-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port', false),
-    ('datastore-coordinator', 'database_url', '"postgresql://bigskies:bigskies@localhost:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
+    ('datastore-coordinator', 'database_url', '"postgresql://bigskies:bigskies_dev_password@postgres:5432/bigskies?sslmode=disable"', 'string', 'PostgreSQL connection string', true),
     ('datastore-coordinator', 'max_connections', '20', 'int', 'Maximum database connections in pool', false),
     ('datastore-coordinator', 'min_connections', '5', 'int', 'Minimum database connections in pool', false);
 
 -- UIElement Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description) VALUES
-    ('uielement-coordinator', 'broker_url', '"localhost"', 'string', 'MQTT broker hostname or IP address'),
+    ('uielement-coordinator', 'broker_url', '"mqtt-broker"', 'string', 'MQTT broker hostname or IP address'),
     ('uielement-coordinator', 'broker_port', '1883', 'int', 'MQTT broker port'),
     ('uielement-coordinator', 'scan_interval', '600', 'int', 'Plugin UI scan interval in seconds');
 

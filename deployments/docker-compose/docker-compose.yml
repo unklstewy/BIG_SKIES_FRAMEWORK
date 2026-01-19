@@ -38,6 +38,30 @@ services:
       timeout: 5s
       retries: 5
 
+  # Bootstrap Coordinator (must run first to provide credentials)
+  bootstrap-coordinator:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.bootstrap
+    container_name: bigskies-bootstrap-coordinator
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - shared_secrets:/shared/secrets
+    command: [
+      "--pgpass=/shared/secrets/.pgpass",
+      "--log-level=${LOG_LEVEL:-info}"
+    ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt-broker:
+        condition: service_started
+    networks:
+      - bigskies-network
+    restart: unless-stopped
+
   # Message Coordinator
   message-coordinator:
     build:
@@ -48,6 +72,8 @@ services:
     container_name: bigskies-message-coordinator
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - shared_secrets:/shared/secrets
     command: ["--broker-url=mqtt-broker", "--broker-port=1883", "--log-level=${LOG_LEVEL:-info}"]
     depends_on:
       - mqtt-broker
@@ -263,4 +289,6 @@ volumes:
   plugin-data:
     driver: local
   cert-data:
+    driver: local
+  shared_secrets:
     driver: local

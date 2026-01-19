@@ -1,26 +1,9 @@
 # Multi-stage build for BIG SKIES coordinators
-FROM golang:1.25-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git make
-
-# Set working directory
-WORKDIR /build
-
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
-COPY . .
+FROM bigskies-build:latest AS builder
 
 # Build argument for which coordinator to build
 ARG COORDINATOR_NAME
 RUN if [ -z "$COORDINATOR_NAME" ]; then echo "COORDINATOR_NAME is required" && exit 1; fi
-
-# Build the coordinator binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" \
-    -o /app/coordinator ./cmd/${COORDINATOR_NAME}/
 
 # Final stage - minimal runtime image
 FROM alpine:latest
@@ -36,7 +19,10 @@ RUN addgroup -g 1000 bigskies && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/coordinator /app/coordinator
+COPY --from=builder /artifacts/go/${COORDINATOR_NAME} /app/coordinator
+
+# Copy configs
+COPY --from=builder /artifacts/configs /app/configs
 
 # Change ownership
 RUN chown -R bigskies:bigskies /app
