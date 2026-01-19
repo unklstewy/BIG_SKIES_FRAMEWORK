@@ -38,7 +38,7 @@ RUN cd plugins/examples/ascom-alpaca-simulator/command-bridge && go mod download
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o command-bridge .
 
 # Build .NET ASCOM simulators
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-builder
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-builder
 WORKDIR /app
 
 # Copy the ASCOM.Alpaca.Simulators submodule
