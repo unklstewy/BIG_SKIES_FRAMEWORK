@@ -123,6 +123,7 @@ func (c *SecurityCoordinator) Start(ctx context.Context) error {
 		mqtt.NewTopicBuilder().Component("security").Action("permission").Resource("check").Build(),
 		mqtt.NewTopicBuilder().Component("security").Action("cert").Resource("request").Build(),
 		mqtt.NewTopicBuilder().Component("security").Action("cert").Resource("renew").Build(),
+		mqtt.NewTopicBuilder().Component("security").Action("rbac").Resource("validate").Build(),
 	}
 
 	for _, topic := range topics {
@@ -178,6 +179,8 @@ func (c *SecurityCoordinator) handleMessage(topic string, payload []byte) {
 		c.handleRequestCertificate(ctx, payload)
 	case "bigskies/coordinator/security/cert/renew":
 		c.handleRenewCertificate(ctx, payload)
+	case "bigskies/coordinator/security/rbac/validate":
+		c.handleRBACValidation(ctx, payload)
 	default:
 		c.GetLogger().Warn("Unhandled topic", zap.String("topic", topic))
 	}
@@ -494,6 +497,82 @@ func (c *SecurityCoordinator) handleRenewCertificate(ctx context.Context, payloa
 		Domain:    newCert.Domain,
 		ExpiresAt: newCert.ExpiresAt,
 	})
+}
+
+// handleRBACValidation processes RBAC permission validation requests from message coordinator.
+func (c *SecurityCoordinator) handleRBACValidation(ctx context.Context, payload []byte) {
+	var msg mqtt.Message
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		c.GetLogger().Error("Failed to unmarshal RBAC validation request envelope", zap.Error(err))
+		return
+	}
+
+	var request models.RBACValidationRequest
+	if err := msg.UnmarshalPayload(&request); err != nil {
+		c.GetLogger().Error("Failed to unmarshal RBAC validation request payload", zap.Error(err))
+		return
+	}
+
+	c.GetLogger().Debug("Processing RBAC validation request",
+		zap.String("correlation_id", request.CorrelationID),
+		zap.String("user_id", request.UserID),
+		zap.String("resource", request.Resource),
+		zap.String("action", request.Action))
+
+	// Check permission using AccountSecurityEngine
+	allowed, err := c.accountSecEngine.CheckPermission(ctx, request.UserID, request.Resource, request.Action)
+	if err != nil {
+		c.GetLogger().Error("Failed to check permission",
+			zap.String("correlation_id", request.CorrelationID),
+			zap.String("user_id", request.UserID),
+			zap.String("resource", request.Resource),
+			zap.String("action", request.Action),
+			zap.Error(err))
+
+		// Send denial response
+		response := models.RBACValidationResponse{
+			CorrelationID: request.CorrelationID,
+			Allowed:       false,
+			Reason:        fmt.Sprintf("Permission check failed: %v", err),
+			Timestamp:     time.Now(),
+		}
+		c.sendRBACValidationResponse(response)
+		return
+	}
+
+	// Send response
+	response := models.RBACValidationResponse{
+		CorrelationID: request.CorrelationID,
+		Allowed:       allowed,
+		Reason:        "",
+		Timestamp:     time.Now(),
+	}
+
+	if !allowed {
+		response.Reason = "Permission denied"
+	}
+
+	c.GetLogger().Debug("RBAC validation result",
+		zap.String("correlation_id", request.CorrelationID),
+		zap.Bool("allowed", allowed))
+
+	c.sendRBACValidationResponse(response)
+}
+
+// sendRBACValidationResponse sends an RBAC validation response to the message coordinator.
+func (c *SecurityCoordinator) sendRBACValidationResponse(response models.RBACValidationResponse) {
+	topic := "bigskies/coordinator/security/rbac/response"
+	msg, err := mqtt.NewMessage(mqtt.MessageTypeResponse, "coordinator:security", response)
+	if err != nil {
+		c.GetLogger().Error("Failed to create RBAC validation response message", zap.Error(err))
+		return
+	}
+
+	if err := c.GetMQTTClient().PublishJSON(topic, 1, false, msg); err != nil {
+		c.GetLogger().Error("Failed to publish RBAC validation response",
+			zap.String("correlation_id", response.CorrelationID),
+			zap.Error(err))
+	}
 }
 
 // publishResponse publishes a response to an MQTT topic.
