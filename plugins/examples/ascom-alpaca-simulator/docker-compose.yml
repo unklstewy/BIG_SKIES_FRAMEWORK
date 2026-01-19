@@ -1,0 +1,46 @@
+# ASCOM Alpaca Simulator Plugin
+# Standalone docker-compose for plugin development and deployment
+# This plugin integrates with BIG SKIES Framework via MQTT
+
+name: big_skies_framework
+
+services:
+  ascom-alpaca-simulator:
+    build:
+      context: ../../..
+      dockerfile: plugins/examples/ascom-alpaca-simulator/Dockerfile
+    container_name: bigskies-ascom-alpaca-simulator
+    labels:
+      - "com.bigskies.component=plugin"
+      - "com.bigskies.plugin.id=f7e8d9c6-b5a4-3210-9876-543210fedcba"
+      - "com.bigskies.plugin.name=ASCOM Alpaca Simulators"
+      - "com.docker.compose.project=big_skies_framework"
+    environment:
+      - PLUGIN_ID=f7e8d9c6-b5a4-3210-9876-543210fedcba
+      - PLUGIN_NAME=ASCOM Alpaca Simulators
+      - MQTT_BROKER=tcp://mqtt-broker:1883
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "32323:80"        # ASCOM Alpaca HTTP API and Web UI
+      - "32227:32227/udp" # ASCOM Discovery (optional)
+    volumes:
+      - ascom-config:/tmp/ascom-config
+    networks:
+      - bigskies
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/v1/management/apiversions"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  bigskies:
+    name: big_skies_framework_bigskies
+    external: true
+
+volumes:
+  ascom-config:
+    driver: local

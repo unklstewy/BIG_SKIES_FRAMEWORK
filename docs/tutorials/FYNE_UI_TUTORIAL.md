@@ -1506,7 +1506,7 @@ echo "Build complete!"
 
 - **Big Skies Novice Guide**: Complete backend integration tutorial
 - **MQTT Documentation**: Understanding message patterns
-- **ASCOM Alpaca**: Telescope control protocol
+- **ASCOM Alpaca**: Telescope control protocol (supports telescope, camera, dome, focuser, filterwheel, rotator)
 
 ### Next Steps
 
@@ -1514,27 +1514,31 @@ echo "Build complete!"
 1. Build the basic telescope controller from Lesson 6
 2. Add error handling and validation
 3. Experiment with different layouts
+4. Add device discovery UI showing all ASCOM device types
 
 **Intermediate:**
-1. Add multiple telescope support
-2. Implement configuration save/load
-3. Create custom widgets
+1. Add multiple telescope support with device pools
+2. Implement configuration save/load for telescope + accessories
+3. Create custom widgets for camera, focuser, and filterwheel controls
 4. Add charting for telescope position
+5. Display status for all device types (mount, camera, dome, focuser, etc.)
 
 **Advanced:**
-1. Build plugin system for custom controls
-2. Implement telescope path visualization
-3. Add image capture preview
+1. Build plugin system for custom device controls
+2. Implement telescope path visualization with dome tracking
+3. Add camera image capture preview with focus graph
 4. Create mobile version with Fyne
+5. Implement automated imaging sequences coordinating mount, camera, focuser, and filterwheel
 
 ### Project Ideas
 
-- **Telescope Planner**: Plan observation sessions
-- **Sky Chart**: Display current sky with telescope overlay
-- **Session Logger**: Track observations with notes
-- **Weather Monitor**: Display seeing conditions
-- **Remote Control**: Web interface + desktop app
-- **Multi-Telescope**: Control multiple telescopes
+- **Telescope Planner**: Plan observation sessions with equipment profiles
+- **Sky Chart**: Display current sky with telescope overlay and dome position
+- **Session Logger**: Track observations with notes and device telemetry
+- **Weather Monitor**: Display seeing conditions and auto-close dome
+- **Remote Control**: Web interface + desktop app for all device types
+- **Multi-Device Dashboard**: Control telescope, camera, dome, focuser, filterwheel, and rotator from one interface
+- **Automated Imaging**: Coordinate slewing, focusing, filter changes, and camera exposures
 
 ### Tips for Success
 

@@ -29,29 +29,68 @@ This plugin integrates the complete ASCOM Alpaca Simulators suite into the BIG S
 ### Prerequisites
 
 - BIG SKIES Framework running with Docker
-- Access to bigskies-network Docker network
+- Docker network `big_skies_framework_bigskies` must exist (created by main framework)
 - MQTT broker available at `mqtt-broker:1883`
 
-### Build the Plugin
+### Quick Start (Using Makefile)
+
+From the **project root**:
+
+```bash
+# Build the plugin
+make plugin-ascom-build
+
+# Start the plugin
+make plugin-ascom-up
+
+# View logs
+make plugin-ascom-logs
+
+# Stop the plugin
+make plugin-ascom-down
+```
+
+### Manual Build and Run
 
 From the plugin directory:
 
 ```bash
+# Navigate to plugin directory
 cd plugins/examples/ascom-alpaca-simulator
-docker build -t bigskies/ascom-alpaca-simulators:latest .
+
+# Build with docker-compose
+docker-compose build
+
+# Start the plugin
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the plugin
+docker-compose down
 ```
 
-### Install via Plugin Coordinator
+### Standalone Docker Build
 
-Using MQTT:
+If building without docker-compose:
 
 ```bash
-mosquitto_pub -h mqtt-broker \
-  -t bigskies/coordinator/plugin/install \
-  -m '{
-    "plugin_id": "f7e8d9c6-b5a4-3210-9876-543210fedcba",
-    "source": "bigskies/ascom-alpaca-simulators:latest"
-  }'
+# From project root
+docker build -f plugins/examples/ascom-alpaca-simulator/Dockerfile \
+  -t bigskies/ascom-alpaca-simulators:latest .
+
+# Run the container
+docker run -d \
+  --name bigskies-ascom-alpaca-simulator \
+  --network big_skies_framework_bigskies \
+  -p 32323:80 \
+  -p 32227:32227/udp \
+  -e PLUGIN_ID=f7e8d9c6-b5a4-3210-9876-543210fedcba \
+  -e PLUGIN_NAME="ASCOM Alpaca Simulators" \
+  -e MQTT_BROKER=tcp://mqtt-broker:1883 \
+  -e LOG_LEVEL=info \
+  bigskies/ascom-alpaca-simulators:latest
 ```
 
 ## Pre-configured Telescope Profiles

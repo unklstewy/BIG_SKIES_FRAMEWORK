@@ -57,7 +57,14 @@ COPY plugins/examples/ascom-alpaca-simulator/state-publisher/ .
 RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o state-publisher .
 
-# Stage 5: Runtime image
+# Stage 5: Build Go command bridge
+FROM golang:1.24-alpine AS command-bridge-builder
+WORKDIR /app
+COPY plugins/examples/ascom-alpaca-simulator/command-bridge/ .
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -o command-bridge .
+
+# Stage 6: Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
@@ -65,6 +72,8 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ca-certificates \
+    coreutils \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy ASCOM Alpaca Simulators
@@ -78,6 +87,9 @@ COPY --from=config-service-builder /app/config-service /usr/local/bin/
 
 # Copy state publisher
 COPY --from=state-publisher-builder /app/state-publisher /usr/local/bin/
+
+# Copy command bridge
+COPY --from=command-bridge-builder /app/command-bridge /usr/local/bin/
 
 # Copy configuration files
 COPY plugins/examples/ascom-alpaca-simulator/configs/ /app/configs/

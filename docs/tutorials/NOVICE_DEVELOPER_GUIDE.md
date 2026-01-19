@@ -65,11 +65,21 @@ Big Skies is a **coordinator-based microservices architecture**. Think of it lik
 
 1. **message-coordinator**: Manages the MQTT broker (the conductor)
 2. **security-coordinator**: Handles authentication and authorization
-3. **telescope-coordinator**: Controls telescopes via ASCOM Alpaca
+3. **telescope-coordinator**: Controls telescope systems via ASCOM Alpaca
 4. **datastore-coordinator**: Manages PostgreSQL database
 5. **application-svc-coordinator**: Tracks running services
 6. **plugin-coordinator**: Manages plugin lifecycle
 7. **ui-element-coordinator**: Provides UI element definitions
+
+### ASCOM Device Types
+
+The telescope coordinator manages multiple types of ASCOM devices that work together:
+- **Telescope**: Mount/OTA (Optical Tube Assembly) - the telescope mount and primary optics
+- **Camera**: Imaging camera - captures images through the telescope
+- **Dome**: Observatory dome - protects telescope and tracks with it
+- **Focuser**: Focus controller - adjusts telescope focus
+- **FilterWheel**: Filter selector - switches between imaging filters
+- **Rotator**: Field rotator - rotates camera to align field of view
 
 ### Communication Pattern
 
@@ -1727,13 +1737,22 @@ In this lesson, we'll add complete telescope control functionality, allowing use
 
 **ASCOM** (Astronomy Common Object Model) is a standard interface for astronomy equipment. **Alpaca** is the cross-platform, network-based version that works over HTTP.
 
-**Key Concepts**:
-- **Device Number**: Multiple telescopes can be connected; each has a device number (usually 0 for the first)
-- **Connected State**: Must connect to telescope before issuing commands
-- **Coordinates**:
+**Device Types**: The framework supports all standard ASCOM device types:
+- **Telescope**: Mount and OTA control (slewing, tracking, parking)
+- **Camera**: Imaging camera control (exposure, binning, temperature)
+- **Dome**: Observatory dome control (azimuth, shutter, slaving to telescope)
+- **Focuser**: Focus control (position, temperature compensation)
+- **FilterWheel**: Filter selection (position, filter names)
+- **Rotator**: Field rotation control (mechanical angle, sky position angle)
+
+**Key Concepts for Telescope Devices**:
+- **Device Number**: Multiple devices of same type can be connected; each has a device number (usually 0 for the first)
+- **Device Role**: In telescope configurations, devices are assigned roles (e.g., "telescope", "camera", "focuser")
+- **Connected State**: Must connect to device before issuing commands
+- **Coordinates** (for telescope mounts):
   - **RA (Right Ascension)**: Like longitude in the sky, measured in hours (0-24)
   - **Dec (Declination)**: Like latitude in the sky, measured in degrees (-90 to +90)
-- **Slewing**: Moving the telescope to point at coordinates
+- **Slewing**: Moving the telescope mount to point at coordinates
 - **Tracking**: Following objects as Earth rotates
 - **Parking**: Moving telescope to safe storage position
 
@@ -2298,17 +2317,34 @@ TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
 
 echo "Token: $TOKEN"
 
-# 1. Connect to telescope
-# This establishes connection to the ASCOM simulator
+# 1. Discover available ASCOM devices
+# This shows all device types: telescope, camera, dome, focuser, filterwheel, rotator
+curl http://localhost:8080/api/telescope/discover \
+  -H "Authorization: Bearer $TOKEN"
+
+# Expected response lists all available devices:
+# {
+#   "devices": [
+#     {"device_id": "...", "device_type": "telescope", "name": "Simulator Telescope"},
+#     {"device_id": "...", "device_type": "camera", "name": "Simulator Camera"},
+#     {"device_id": "...", "device_type": "focuser", "name": "Simulator Focuser"},
+#     {"device_id": "...", "device_type": "filterwheel", "name": "Filter Wheel"},
+#     {"device_id": "...", "device_type": "rotator", "name": "Simulator Rotator"},
+#     {"device_id": "...", "device_type": "dome", "name": "Simulator Dome"}
+#   ]
+# }
+
+# 2. Connect to telescope mount device
+# This establishes connection to the ASCOM telescope simulator
 curl -X POST http://localhost:8080/api/telescope/connect \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"device_number": 0}'
+  -d '{"device_number": 0, "device_type": "telescope"}'
 
 # Expected response: {"connected": true, ...}
 
-# 2. Get telescope status
-# This queries current position and state
+# 3. Get telescope mount status
+# This queries current position and state of the mount
 curl http://localhost:8080/api/telescope/status \
   -H "Authorization: Bearer $TOKEN"
 
@@ -2318,12 +2354,33 @@ curl http://localhost:8080/api/telescope/status \
 # - right_ascension: current RA
 # - declination: current Dec
 
-# 3. Unpark telescope (if it's parked)
+# 3. Create a telescope configuration with multiple devices
+# A configuration links multiple device types together as a "telescope pool"
+# This allows coordinated control of mount, camera, dome, etc.
+curl -X POST http://localhost:8080/api/telescope/config/create \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Observatory Setup",
+    "devices": {
+      "telescope": "device-id-from-discovery",
+      "camera": "camera-device-id",
+      "focuser": "focuser-device-id",
+      "filterwheel": "filterwheel-device-id",
+      "dome": "dome-device-id",
+      "rotator": "rotator-device-id"
+    }
+  }'
+
+# Note: In this tutorial we're focusing on telescope mount control,
+# but real telescope configurations can include any combination of these devices
+
+# 4. Unpark telescope (if it's parked)
 # Telescope must be unparked before slewing
 curl -X POST http://localhost:8080/api/telescope/unpark \
   -H "Authorization: Bearer $TOKEN"
 
-# 4. Slew to coordinates
+# 5. Slew to coordinates
 # Move telescope to point at specific sky coordinates
 # Example: RA=10.5 hours, Dec=45 degrees
 # This would point at a location in the constellation Leo

@@ -30,6 +30,13 @@ shutdown() {
     echo ""
     echo "Shutting down ASCOM Alpaca Simulators Plugin..."
     
+    # Kill command bridge
+    if [ ! -z "$BRIDGE_PID" ]; then
+        echo "Stopping command bridge (PID: $BRIDGE_PID)..."
+        kill -TERM "$BRIDGE_PID" 2>/dev/null || true
+        wait "$BRIDGE_PID" 2>/dev/null || true
+    fi
+    
     # Kill state publisher
     if [ ! -z "$STATE_PID" ]; then
         echo "Stopping state publisher (PID: $STATE_PID)..."
@@ -71,7 +78,7 @@ cd /app/ascom
 # Start ASCOM server in background
 dotnet ascom.alpaca.simulators.dll \
     --urls "$ASPNETCORE_URLS" \
-    2>&1 | sed 's/^/[ASCOM] /' &
+    2>&1 | stdbuf -oL -eL sed 's/^/[ASCOM] /' &
 
 ASCOM_PID=$!
 echo "ASCOM server started (PID: $ASCOM_PID)"
@@ -82,23 +89,30 @@ sleep 2
 
 echo "Starting health reporter..."
 # Start health reporter in background
-/usr/local/bin/health-reporter 2>&1 | sed 's/^/[Health] /' &
+/usr/local/bin/health-reporter 2>&1 | stdbuf -oL -eL sed 's/^/[Health] /' &
 HEALTH_PID=$!
 echo "Health reporter started (PID: $HEALTH_PID)"
 echo ""
 
 echo "Starting config service..."
 # Start config service in background
-/usr/local/bin/config-service 2>&1 | sed 's/^/[Config] /' &
+/usr/local/bin/config-service 2>&1 | stdbuf -oL -eL sed 's/^/[Config] /' &
 CONFIG_PID=$!
 echo "Config service started (PID: $CONFIG_PID)"
 echo ""
 
 echo "Starting state publisher..."
 # Start state publisher in background
-/usr/local/bin/state-publisher 2>&1 | sed 's/^/[State] /' &
+/usr/local/bin/state-publisher 2>&1 | stdbuf -oL -eL sed 's/^/[State] /' &
 STATE_PID=$!
 echo "State publisher started (PID: $STATE_PID)"
+echo ""
+
+echo "Starting command bridge..."
+# Start command bridge in background
+/usr/local/bin/command-bridge 2>&1 | stdbuf -oL -eL sed 's/^/[Bridge] /' &
+BRIDGE_PID=$!
+echo "Command bridge started (PID: $BRIDGE_PID)"
 echo ""
 
 echo "========================================="
@@ -110,7 +124,7 @@ echo "========================================="
 echo ""
 
 # Wait for any process to exit
-wait -n $ASCOM_PID $HEALTH_PID $CONFIG_PID $STATE_PID
+wait -n $ASCOM_PID $HEALTH_PID $CONFIG_PID $STATE_PID $BRIDGE_PID
 
 # If we get here, one of the processes died
 EXIT_CODE=$?

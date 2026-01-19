@@ -2,6 +2,19 @@
 
 An interactive, single-page application for viewing markdown tutorials with automatic lesson segmentation, progress tracking, and syntax highlighting.
 
+## Overview
+
+The Big Skies Framework tutorials teach you how to build applications that control astronomical equipment using the ASCOM Alpaca protocol. The framework supports all standard ASCOM device types:
+
+- **Telescope**: Mount and OTA control (slewing, tracking, parking)
+- **Camera**: Imaging camera control (exposure, binning, temperature)
+- **Dome**: Observatory dome control (azimuth, shutter, slaving)
+- **Focuser**: Focus control (position, temperature compensation)
+- **FilterWheel**: Filter selection (position, filter names)
+- **Rotator**: Field rotation control (mechanical angle, sky position angle)
+
+Tutorials show how to discover devices, create telescope configurations with multiple devices ("telescope pools"), and control each device type through the MQTT message bus.
+
 ## Features
 
 ### 📚 **Automatic Lesson Parsing**

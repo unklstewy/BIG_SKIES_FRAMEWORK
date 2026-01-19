@@ -179,19 +179,21 @@ db-status:
 		echo "Database is not running. Start with: make docker-up"; \
 	fi
 
-# Plugin-specific targets (if ascom-alpaca-simulator is added to docker-compose.yml)
+# Plugin-specific targets
 plugin-ascom-build:
 	@echo "Building ASCOM Alpaca Simulator plugin..."
-	@docker-compose build ascom-alpaca-simulator
+	@cd plugins/examples/ascom-alpaca-simulator && docker-compose build
 
 plugin-ascom-up:
 	@echo "Starting ASCOM Alpaca Simulator plugin..."
-	@docker-compose up -d ascom-alpaca-simulator
-	@echo "Plugin started. Access at http://localhost:32323"
+	@cd plugins/examples/ascom-alpaca-simulator && docker-compose up -d
+	@echo "✅ Plugin started!"
+	@echo "   Web UI: http://localhost:32323"
+	@echo "   API Docs: http://localhost:32323/swagger"
 
 plugin-ascom-down:
 	@echo "Stopping ASCOM Alpaca Simulator plugin..."
-	@docker-compose stop ascom-alpaca-simulator
+	@cd plugins/examples/ascom-alpaca-simulator && docker-compose down
 
 plugin-ascom-logs:
-	@docker-compose logs -f ascom-alpaca-simulator
+	@cd plugins/examples/ascom-alpaca-simulator && docker-compose logs -f
