@@ -234,6 +234,10 @@ func (c *MQTTConfig) BrokerURLFull() string {
 
 // CreateDatabasePool creates a PostgreSQL connection pool from a connection string.
 func CreateDatabasePool(connectionString string, maxConns int) (*pgxpool.Pool, error) {
+	if maxConns < 0 || maxConns > 1000 {
+		return nil, fmt.Errorf("maxConns must be between 0 and 1000, got %d", maxConns)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -244,7 +248,7 @@ func CreateDatabasePool(connectionString string, maxConns int) (*pgxpool.Pool, e
 
 	// Set pool configuration
 	if maxConns > 0 {
-		config.MaxConns = int32(maxConns)
+		config.MaxConns = int32(maxConns) //nolint:gosec // Bounds checked above
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)

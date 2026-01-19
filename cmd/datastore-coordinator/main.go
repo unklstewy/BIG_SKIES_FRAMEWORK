@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		panic("failed to create logger: " + err.Error())
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting BIG SKIES Data Store Coordinator",
 		zap.Int("max_connections", *maxConns),

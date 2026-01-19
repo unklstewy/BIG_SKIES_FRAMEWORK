@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -128,7 +129,17 @@ func (mr *MigrationRunner) LoadMigrations() ([]*Migration, error) {
 
 // loadMigrationFile loads a single migration file.
 func (mr *MigrationRunner) loadMigrationFile(filename string, version int) (*Migration, error) {
+	// Validate filename to prevent directory traversal
+	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		return nil, fmt.Errorf("invalid migration filename: %s", filename)
+	}
+	if !strings.HasSuffix(filename, ".sql") {
+		return nil, fmt.Errorf("migration file must have .sql extension: %s", filename)
+	}
+
 	filePath := filepath.Join(mr.config.SchemaPath, filename)
+	// Clean the path to prevent any remaining traversal issues
+	filePath = filepath.Clean(filePath)
 
 	// Read file content
 	content, err := os.ReadFile(filePath)
@@ -260,7 +271,7 @@ func (mr *MigrationRunner) applyMigration(ctx context.Context, migration *Migrat
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Execute migration SQL
 	mr.logger.Debug("Executing migration SQL",
@@ -339,7 +350,7 @@ func (mr *MigrationRunner) Rollback(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Delete migration record
 	deleteQuery := `DELETE FROM schema_migrations WHERE version = $1`

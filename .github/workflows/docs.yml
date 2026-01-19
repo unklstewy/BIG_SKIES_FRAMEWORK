@@ -1,0 +1,96 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '**.md'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '**.md'
+      - '.github/workflows/docs.yml'
+
+jobs:
+  docs:
+    name: Generate and Deploy Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Generate API documentation
+      run: |
+        # Install swag for Swagger docs generation
+        go install github.com/swaggo/swag/cmd/swag@latest
+
+        # Generate Swagger docs if API endpoints exist
+        if [ -d "api" ]; then
+          swag init -g cmd/main.go -o docs/api
+        fi
+
+    - name: Generate Go documentation
+      run: |
+        # Install godoc2md for Markdown docs
+        go install github.com/davecheney/godoc2md@latest
+
+        # Generate package documentation
+        mkdir -p docs/go
+        for pkg in $(go list ./... | grep -v test); do
+          pkg_name=$(basename $pkg)
+          godoc2md $pkg > docs/go/${pkg_name}.md
+        done
+
+    - name: Build documentation site
+      uses: peaceiris/actions-mdbook@v1
+      if: contains(github.event.head_commit.modified, 'docs/')
+      with:
+        mdbook-version: 'latest'
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/book
+        cname: docs.bigskies-framework.dev  # Replace with your domain
+
+  validate-docs:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check links
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'yes'
+        check-modified-files-only: 'yes'
+        config-file: '.github/workflows/link-check-config.json'
+
+    - name: Validate README
+      run: |
+        # Check if README has required sections
+        if ! grep -q "## Quick Start" README.md; then
+          echo "README missing Quick Start section"
+          exit 1
+        fi
+
+        if ! grep -q "## Architecture" README.md; then
+          echo "README missing Architecture section"
+          exit 1
+        fi

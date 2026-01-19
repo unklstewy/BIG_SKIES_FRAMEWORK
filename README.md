@@ -1,5 +1,13 @@
 # BIG SKIES FRAMEWORK
 
+[![CI](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/ci.yml/badge.svg)](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/ci.yml)
+[![Release](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/release.yml/badge.svg)](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/release.yml)
+[![Security](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/security.yml/badge.svg)](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/security.yml)
+[![Quality](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/quality.yml/badge.svg)](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/quality.yml)
+[![Performance](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/performance.yml/badge.svg)](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/performance.yml)
+[![Documentation](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/docs.yml/badge.svg)](https://github.com/unklstewy/BIG_SKIES_FRAMEWORK/actions/workflows/docs.yml)
+[![codecov](https://codecov.io/gh/unklstewy/BIG_SKIES_FRAMEWORK/branch/main/graph/badge.svg)](https://codecov.io/gh/unklstewy/BIG_SKIES_FRAMEWORK)
+
 The BIG SKIES FRAMEWORK is a plugin-extensible backend framework for telescope operations (terrestrial and astronomy). Built with Go, it uses a microservices architecture with Docker containers as plugin extensions, coordinated via an MQTT message bus.
 
 ## Features
@@ -7,7 +15,7 @@ The BIG SKIES FRAMEWORK is a plugin-extensible backend framework for telescope o
 - **Plugin Architecture**: Extensible via Docker containers
 - **Microservices**: Coordinator-based architecture for modularity
 - **Message Bus**: MQTT with JSON interchange format
-- **Security**: mTLS support, role-based access control (RBAC)
+- **Security**: mTLS support, JWT authentication, role-based access control (RBAC)
 - **Database**: PostgreSQL with containerized deployment
 - **ASCOM Integration**: Full ASCOM Alpaca interface support
 
@@ -74,7 +82,7 @@ make docker-down    # Stop all services
 
 ## Project Status
 
-**Current Phase**: Backend Implementation Complete ✅
+**Current Phase**: CI/CD Pipeline Complete ✅
 
 - [x] Project initialization and directory structure
 - [x] Core dependencies added (MQTT, PostgreSQL, Docker SDK, etc.)
@@ -84,7 +92,8 @@ make docker-down    # Stop all services
 - [x] Docker Compose orchestration
 - [x] Unit tests for coordinators and engines
 - [x] Integration tests for all coordinators
-- [ ] CI/CD pipeline (GitHub Actions)
+- [x] **RBAC Implementation Complete** - Message-level authorization with database-driven rules
+- [x] **CI/CD Pipeline Complete** - GitHub Actions with automated testing, security scanning, and deployment
 - [ ] Plugin SDK documentation and examples
 - [ ] Advanced ASCOM simulator integration
 
@@ -98,9 +107,9 @@ make docker-down    # Stop all services
 - ✅ Telescope Coordinator - ASCOM Alpaca integration, device management, multi-tenant configs
 
 **Next Steps**:
-- CI/CD pipeline setup
 - Plugin SDK development and examples
-- Enhanced documentation and architecture diagrams
+- Enhanced ASCOM simulator integration
+- Production deployment and monitoring
 
 See `docs/coordinators/` for coordinator-specific documentation.
 

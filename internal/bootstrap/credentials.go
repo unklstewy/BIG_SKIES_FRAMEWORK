@@ -43,6 +43,22 @@ func LoadCredentials(dbConfig *DatabaseConfig) (*Credentials, error) {
 // LoadCredentialsFromPath attempts to load database credentials with a custom .pgpass path.
 // If pgpassPath is empty, uses the standard .pgpass file locations.
 func LoadCredentialsFromPath(pgpassPath string, dbConfig *DatabaseConfig) (*Credentials, error) {
+	// Validate and clean pgpassPath to prevent directory traversal attacks
+	if pgpassPath != "" {
+		// Clean the path to resolve any .. sequences
+		cleanPath := filepath.Clean(pgpassPath)
+
+		// Ensure path doesn't contain suspicious patterns after cleaning
+		if strings.Contains(cleanPath, "..") || strings.Contains(cleanPath, "/etc") || strings.Contains(cleanPath, "/proc") {
+			return nil, fmt.Errorf("invalid pgpass path: %s", pgpassPath)
+		}
+		// Ensure it's an absolute path or in a reasonable location
+		if !filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "~") && !strings.HasPrefix(cleanPath, ".") {
+			return nil, fmt.Errorf("pgpass path must be absolute or start with ~ or . : %s", pgpassPath)
+		}
+		pgpassPath = cleanPath
+	}
+
 	// Try loading from .pgpass first
 	creds, err := LoadFromPgpassFile(pgpassPath, dbConfig.Host, dbConfig.Port, dbConfig.Name, dbConfig.User)
 	if err == nil {
@@ -113,7 +129,7 @@ func LoadFromPgpassFile(pgpassPath string, host string, port int, database, user
 	if err != nil {
 		return nil, fmt.Errorf("failed to open .pgpass file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	lineNum := 0

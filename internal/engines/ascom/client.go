@@ -55,10 +55,12 @@ func (c *Client) DiscoverDevices(ctx context.Context, port int) ([]*models.Alpac
 	if err != nil {
 		return nil, fmt.Errorf("failed to create UDP listener: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set read deadline
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return nil, fmt.Errorf("failed to set read deadline: %w", err)
+	}
 
 	// Prepare discovery message
 	discoveryMsg := []byte("alpacadiscovery1")
@@ -125,7 +127,7 @@ func (c *Client) GetConfiguredDevices(ctx context.Context, serverURL string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("failed to get configured devices: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -195,7 +197,7 @@ func (c *Client) Get(ctx context.Context, serverURL, deviceType string, deviceNu
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -238,7 +240,7 @@ func (c *Client) Put(ctx context.Context, serverURL, deviceType string, deviceNu
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

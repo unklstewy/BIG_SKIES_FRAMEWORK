@@ -1,0 +1,101 @@
+name: CI/CD Health Check
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: CI/CD Health Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check recent workflow runs
+      run: |
+        # Get recent workflow runs for the last 24 hours
+        RECENT_RUNS=$(gh workflow list --json name,conclusion,updatedAt | jq -r '.[] | select(.updatedAt | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime > (now - 86400)) | "\(.name): \(.conclusion)"')
+
+        echo "Recent workflow runs:"
+        echo "$RECENT_RUNS"
+
+        # Check for failures
+        FAILED_WORKFLOWS=$(echo "$RECENT_RUNS" | grep -c "failure\|cancelled" || true)
+
+        if [ "$FAILED_WORKFLOWS" -gt 0 ]; then
+          echo "Found $FAILED_WORKFLOWS failed workflows in the last 24 hours"
+          echo "FAILED_WORKFLOWS=$FAILED_WORKFLOWS" >> $GITHUB_ENV
+
+          # Send alert (you can integrate with Slack, Discord, etc.)
+          echo "🚨 CI/CD Alert: $FAILED_WORKFLOWS workflows failed in the last 24 hours" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "All recent workflows passed ✅"
+        fi
+
+    - name: Check branch protection
+      run: |
+        # Check if main branch has required protections
+        PROTECTION_STATUS=$(gh api repos/${{ github.repository }}/branches/main/protection -H "Accept: application/vnd.github+json" | jq -r '.required_status_checks | length')
+
+        if [ "$PROTECTION_STATUS" -eq 0 ]; then
+          echo "⚠️ Warning: Main branch does not have required status checks"
+          echo "BRANCH_PROTECTION_WARNING=true" >> $GITHUB_ENV
+        fi
+
+    - name: Check dependency updates
+      run: |
+        # Check for outdated dependencies
+        go list -u -m all | grep -v "(indirect)" | awk '{if($4 != "") print $1, $3, "->", $4}' > outdated_deps.txt
+
+        if [ -s outdated_deps.txt ]; then
+          echo "📦 Outdated dependencies found:"
+          cat outdated_deps.txt
+          echo "OUTDATED_DEPS=true" >> $GITHUB_ENV
+        fi
+
+    - name: Generate health report
+      run: |
+        echo "# CI/CD Health Report" >> health_report.md
+        echo "" >> health_report.md
+        echo "Generated at: $(date)" >> health_report.md
+        echo "" >> health_report.md
+
+        if [ "${{ env.FAILED_WORKFLOWS }}" ]; then
+          echo "## 🚨 Issues Found" >> health_report.md
+          echo "- $FAILED_WORKFLOWS workflows failed in the last 24 hours" >> health_report.md
+        else
+          echo "## ✅ All Systems Healthy" >> health_report.md
+        fi
+
+        if [ "${{ env.BRANCH_PROTECTION_WARNING }}" ]; then
+          echo "- Main branch protection may need review" >> health_report.md
+        fi
+
+        if [ "${{ env.OUTDATED_DEPS }}" ]; then
+          echo "- Dependencies are outdated" >> health_report.md
+          echo "" >> health_report.md
+          echo "### Outdated Dependencies" >> health_report.md
+          echo "\`\`\`" >> health_report.md
+          cat outdated_deps.txt >> health_report.md
+          echo "\`\`\`" >> health_report.md
+        fi
+
+    - name: Upload health report
+      uses: actions/upload-artifact@v3
+      with:
+        name: health-report
+        path: health_report.md
+
+    - name: Send alert on failures
+      if: env.FAILED_WORKFLOWS
+      run: |
+        # Send notification to Slack, Discord, or email
+        # Example for Slack webhook:
+        # curl -X POST -H 'Content-type: application/json' \
+        #   --data '{"text":"🚨 CI/CD Alert: Workflows failing in BIG SKIES Framework"}' \
+        #   ${{ secrets.SLACK_WEBHOOK_URL }}
+
+        echo "Alert sent for CI/CD failures"

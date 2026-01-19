@@ -70,8 +70,15 @@ func (dsc *DataStoreCoordinator) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to parse database URL: %w", err)
 	}
 
-	poolConfig.MaxConns = int32(dsc.config.MaxConnections)
-	poolConfig.MinConns = int32(dsc.config.MinConnections)
+	if dsc.config.MaxConnections < 0 || dsc.config.MaxConnections > 1000 {
+		return fmt.Errorf("MaxConnections must be between 0 and 1000, got %d", dsc.config.MaxConnections)
+	}
+	if dsc.config.MinConnections < 0 || dsc.config.MinConnections > dsc.config.MaxConnections {
+		return fmt.Errorf("MinConnections must be between 0 and MaxConnections (%d), got %d", dsc.config.MaxConnections, dsc.config.MinConnections)
+	}
+
+	poolConfig.MaxConns = int32(dsc.config.MaxConnections) //nolint:gosec // Bounds checked above
+	poolConfig.MinConns = int32(dsc.config.MinConnections) //nolint:gosec // Bounds checked above
 	poolConfig.MaxConnLifetime = 1 * time.Hour
 	poolConfig.MaxConnIdleTime = 30 * time.Minute
 
@@ -151,7 +158,7 @@ func (dsc *DataStoreCoordinator) Check(ctx context.Context) *healthcheck.Result 
 			details["acquired_conns"] = stats.AcquiredConns()
 
 			// Check if we're running low on connections
-			if stats.AcquiredConns() >= int32(dsc.config.MaxConnections)-1 {
+			if stats.AcquiredConns() >= int32(dsc.config.MaxConnections)-1 { // #nosec G115 -- bounds checked during pool creation
 				status = healthcheck.StatusDegraded
 				message = "Database connection pool near capacity"
 			}

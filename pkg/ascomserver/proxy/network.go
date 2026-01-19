@@ -301,7 +301,7 @@ func (n *NetworkProxy) doHTTPRequest(ctx context.Context, httpMethod, url string
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)
@@ -362,7 +362,12 @@ func (n *NetworkProxy) executeWithRetry(ctx context.Context, operation func() er
 		// Don't retry on the last attempt
 		if attempt < n.config.RetryAttempts {
 			// Wait before retrying (exponential backoff)
-			delay := n.config.RetryDelay * time.Duration(1<<uint(attempt))
+			// Limit attempt to prevent overflow in bit shift
+			shift := uint(attempt)
+			if attempt > 30 {
+				shift = 30
+			}
+			delay := n.config.RetryDelay * time.Duration(1<<shift) //nolint:gosec // shift is bounded to prevent overflow
 			select {
 			case <-time.After(delay):
 				// Continue to next attempt

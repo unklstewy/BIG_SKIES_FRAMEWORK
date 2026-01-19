@@ -72,7 +72,8 @@ INSERT INTO coordinator_config (coordinator_name, config_key, config_value, conf
     ('message-coordinator', 'monitor_interval', '30', 'int', 'Health monitoring interval in seconds'),
     ('message-coordinator', 'max_reconnect_attempts', '5', 'int', 'Maximum MQTT reconnection attempts before marking unhealthy'),
     ('message-coordinator', 'max_queue_size', '1000', 'int', 'Maximum RBAC validation queue size'),
-    ('message-coordinator', 'validation_timeout', '30', 'int', 'RBAC validation timeout in seconds');
+    ('message-coordinator', 'validation_timeout', '30', 'int', 'RBAC validation timeout in seconds'),
+    ('message-coordinator', 'rbac_enabled', 'false', 'bool', 'Enable RBAC validation for protected topics');
 
 -- Application Coordinator configuration
 INSERT INTO coordinator_config (coordinator_name, config_key, config_value, config_type, description) VALUES

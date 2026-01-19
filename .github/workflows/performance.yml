@@ -1,0 +1,130 @@
+name: Performance Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**.go'
+      - 'Makefile'
+      - '.github/workflows/performance.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**.go'
+      - 'Makefile'
+      - '.github/workflows/performance.yml'
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Mondays at 2 AM
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: bigskies_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      mosquitto:
+        image: eclipse-mosquitto:2.0
+        ports:
+          - 1883:1883
+        volumes:
+          - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run benchmarks
+      run: |
+        go test -bench=. -benchmem ./... > benchmark_results.txt
+        cat benchmark_results.txt
+
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      if: github.event_name != 'pull_request'
+      with:
+        name: Go Benchmark
+        tool: 'go'
+        output-file-path: benchmark_results.txt
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    needs: benchmark
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Build application
+      run: make build
+
+    - name: Run load tests
+      run: |
+        # Install hey for load testing
+        wget https://hey-release.s3.us-east-2.amazonaws.com/hey_linux_amd64
+        chmod +x hey_linux_amd64
+        sudo mv hey_linux_amd64 /usr/local/bin/hey
+
+        # Start services for load testing
+        make docker-up
+
+        # Wait for services to be ready
+        sleep 30
+
+        # Run load tests against key endpoints
+        echo "Running load tests..."
+        hey -n 1000 -c 10 http://localhost:8080/health > load_test_results.txt
+        cat load_test_results.txt
+
+    - name: Upload load test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: load-test-results
+        path: load_test_results.txt

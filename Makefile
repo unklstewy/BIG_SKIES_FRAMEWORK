@@ -57,7 +57,7 @@ test-integration:
 	@docker ps --filter "name=bigskies-mqtt" --format "{{.Names}}" | grep -q bigskies-mqtt || \
 		(echo "ERROR: Services not running. Start with 'make docker-up' first." && exit 1)
 	@echo "Services detected, running integration tests..."
-	@go test -v ./test/integration/... -count=1
+	@RBAC_ENABLED=false go test -v ./test/integration/... -count=1
 
 # Run tests with coverage
 test-coverage:

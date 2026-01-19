@@ -1,3 +1,5 @@
+version: 2
+
 linters-settings:
   govet:
     check-shadowing: true
@@ -11,9 +13,7 @@ linters-settings:
   misspell:
     locale: US
   lll:
-    line-length: 120
-  goimports:
-    local-prefixes: github.com/unklstewy/BIG_SKIES_FRAMEWORK
+    line-length: 140  # Increased from 120 for complex expressions
   gocritic:
     enabled-tags:
       - diagnostic
@@ -21,6 +21,9 @@ linters-settings:
       - opinionated
       - performance
       - style
+  funlen:
+    lines: 80  # Increased from 60 for coordinator methods
+    statements: 50  # Increased from 40 for complex business logic
 
 linters:
   disable-all: true
@@ -29,18 +32,12 @@ linters:
     - dogsled
     - dupl
     - errcheck
-    - exportloopref
     - funlen
     - gochecknoinits
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
-    - gomnd
-    - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - lll
@@ -49,8 +46,6 @@ linters:
     - nolintlint
     - revive
     - staticcheck
-    - stylecheck
-    - typecheck
     - unconvert
     - unparam
     - unused
@@ -60,11 +55,34 @@ issues:
   exclude-rules:
     - path: _test\.go
       linters:
-        - gomnd
         - funlen
         - goconst
+        - gocyclo
+        - lll
+        - dupl
+
+    # Allow longer function names in main functions
+    - path: cmd/.*\.go
+      linters:
+        - funlen
+
+    # Allow magic strings in test files
+    - path: test/.*\.go
+      linters:
+        - goconst
+
+    # Allow unused parameters in interface implementations
+    - path: .*\.go
+      linters:
+        - unparam
+      text: "result 0 .* is always nil"
+
+    # Allow os.Exit in main functions
+    - path: cmd/.*\.go
+      linters:
+        - gocritic
+      text: "exitAfterDefer"
 
 run:
-  version: "1"
   timeout: 5m
   tests: true

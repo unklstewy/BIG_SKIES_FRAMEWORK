@@ -83,7 +83,7 @@ func (d *DiscoveryService) Stop() {
 //
 // This method continues running until the stopCh is closed via Stop().
 func (d *DiscoveryService) discoveryLoop(conn *net.UDPConn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Buffer for receiving UDP packets.
 	// Discovery messages are small, so 1024 bytes is more than sufficient.
@@ -117,7 +117,7 @@ func (d *DiscoveryService) discoveryLoop(conn *net.UDPConn) {
 			// Set a read deadline so we can periodically check stopCh.
 			// Without this, ReadFromUDP would block forever and we couldn't stop gracefully.
 			// We use a 1-second deadline to balance responsiveness vs. CPU usage.
-			conn.SetReadDeadline(mustTime(1))
+			func() { _ = conn.SetReadDeadline(mustTime(1)) }()
 
 			// Read incoming UDP packet
 			n, remoteAddr, err := conn.ReadFromUDP(buffer)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -94,6 +95,14 @@ func (cm *CoordinatorManager) StartAll(ctx context.Context) error {
 
 // Start starts a single coordinator process.
 func (cm *CoordinatorManager) Start(ctx context.Context, coordinatorName string) error {
+	// Validate coordinator name to prevent command injection
+	if strings.Contains(coordinatorName, "..") || strings.Contains(coordinatorName, "/") || strings.Contains(coordinatorName, "\\") || strings.Contains(coordinatorName, " ") {
+		return fmt.Errorf("invalid coordinator name: %s", coordinatorName)
+	}
+	if coordinatorName == "" {
+		return fmt.Errorf("coordinator name cannot be empty")
+	}
+
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -224,7 +233,11 @@ func (cm *CoordinatorManager) Stop(ctx context.Context, coordinatorName string) 
 		}
 	case <-ctx.Done():
 		// Context cancelled, force kill
-		proc.Cmd.Process.Kill()
+		if err := proc.Cmd.Process.Kill(); err != nil {
+			cm.logger.Warn("Failed to kill process on context cancellation",
+				zap.String("coordinator", coordinatorName),
+				zap.Error(err))
+		}
 		return ctx.Err()
 	}
 

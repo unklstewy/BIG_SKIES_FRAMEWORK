@@ -486,7 +486,12 @@ func (m *MQTTProxy) executeWithRetry(ctx context.Context, operation func() error
 		// Don't retry on the last attempt
 		if attempt < m.config.RetryAttempts {
 			// Wait before retrying (exponential backoff)
-			delay := m.config.RetryDelay * time.Duration(1<<uint(attempt))
+			// Limit attempt to prevent overflow in bit shift
+			shift := uint(attempt)
+			if attempt > 30 {
+				shift = 30
+			}
+			delay := m.config.RetryDelay * time.Duration(1<<shift) //nolint:gosec // shift is bounded to prevent overflow
 			select {
 			case <-time.After(delay):
 				// Continue to next attempt

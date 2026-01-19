@@ -605,7 +605,11 @@ func deviceKey(deviceType string, deviceNumber int) string {
 
 func extractPort(address string) int {
 	var port int
-	fmt.Sscanf(address, "%*[^:]:%d", &port)
+	_, err := fmt.Sscanf(address, "%*[^:]:%d", &port)
+	if err != nil {
+		// Return default port if parsing fails
+		return 8080
+	}
 	return port
 }
 

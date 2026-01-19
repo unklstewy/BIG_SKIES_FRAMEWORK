@@ -162,7 +162,7 @@ func (sm *SessionManager) Stop() error {
 	// Close all active sessions
 	sm.sessions.Range(func(key, value interface{}) bool {
 		if session, ok := value.(*ASCOMSession); ok {
-			sm.endSession(context.Background(), session)
+			func() { _ = sm.endSession(context.Background(), session) }()
 		}
 		return true
 	})
@@ -584,7 +584,7 @@ func (sm *SessionManager) performCleanup() {
 				go sm.updateSessionActivity(ctx, session)
 			} else if currentStatus == SessionStatusIdle && timeSinceActivity > 2*sm.sessionTimeout {
 				// Close if idle for twice the timeout
-				sm.endSession(ctx, session)
+				func() { _ = sm.endSession(ctx, session) }()
 				closedCount++
 			}
 		}

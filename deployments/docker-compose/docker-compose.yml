@@ -29,6 +29,7 @@ services:
       - ../../configs/sql/security_schema.sql:/docker-entrypoint-initdb.d/01-security_schema.sql:ro
       - ../../configs/sql/telescope_schema.sql:/docker-entrypoint-initdb.d/02-telescope_schema.sql:ro
       - ../../configs/sql/ascom_schema.sql:/docker-entrypoint-initdb.d/03-ascom_schema.sql:ro
+      - ../../configs/sql/message_rbac_schema.sql:/docker-entrypoint-initdb.d/04-message_rbac_schema.sql:ro
     networks:
       - bigskies-network
     restart: unless-stopped
@@ -72,6 +73,7 @@ services:
     container_name: bigskies-message-coordinator
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - RBAC_ENABLED=${RBAC_ENABLED:-false}
     volumes:
       - shared_secrets:/shared/secrets
     command: ["--broker-url=mqtt-broker", "--broker-port=1883", "--log-level=${LOG_LEVEL:-info}"]

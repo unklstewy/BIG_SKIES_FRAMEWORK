@@ -16,6 +16,13 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// CredentialsTopic is the MQTT topic for bootstrap credentials
+	CredentialsTopic = "bigskies/coordinator/bootstrap/credentials" //nolint:gosec // This is an MQTT topic name, not a credential
+	// RequestTopic is the MQTT topic for bootstrap credential requests
+	RequestTopic = "bigskies/coordinator/bootstrap/request" //nolint:gosec // This is an MQTT topic name, not a credential
+)
+
 // BaseCoordinator provides common functionality for all coordinators.
 type BaseCoordinator struct {
 	name          string
@@ -303,13 +310,13 @@ func (bc *BaseCoordinator) WaitForCredentials(ctx context.Context, timeout time.
 		zap.Duration("timeout", timeout))
 
 	// Subscribe to bootstrap credentials topic
-	credentialsTopic := "bigskies/coordinator/bootstrap/credentials"
+	credentialsTopic := CredentialsTopic
 	if err := bc.mqttClient.Subscribe(credentialsTopic, 1, bc.handleCredentialMessage); err != nil {
 		return nil, fmt.Errorf("failed to subscribe to credentials topic: %w", err)
 	}
 
 	// Publish a request for credentials (in case bootstrap already published before we subscribed)
-	requestTopic := "bigskies/coordinator/bootstrap/request"
+	requestTopic := RequestTopic
 	if err := bc.mqttClient.Publish(requestTopic, 1, false, []byte(bc.name)); err != nil {
 		bc.logger.Warn("Failed to request credentials, will wait for periodic publish",
 			zap.Error(err))

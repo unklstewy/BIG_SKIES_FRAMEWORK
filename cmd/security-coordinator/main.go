@@ -44,7 +44,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to create logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting Security Coordinator",
 		zap.String("broker_host", *brokerHost),

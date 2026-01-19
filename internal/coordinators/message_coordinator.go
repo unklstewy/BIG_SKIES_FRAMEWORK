@@ -31,6 +31,7 @@ type MessageCoordinator struct {
 	queueMutex        sync.RWMutex        // Separate mutex for queue operations
 	maxQueueSize      int                 // Maximum pending messages
 	validationTimeout time.Duration       // Timeout for RBAC validation
+	rbacEnabled       bool                // RBAC validation enabled flag
 	mu                sync.RWMutex
 }
 
@@ -48,6 +49,7 @@ type MessageCoordinatorConfig struct {
 	// Phase 3: Advanced Features
 	MaxQueueSize      int           `json:"max_queue_size"`     // Maximum pending messages
 	ValidationTimeout time.Duration `json:"validation_timeout"` // Timeout for RBAC validation
+	RBACEnabled       bool          `json:"rbac_enabled"`       // Enable RBAC validation
 }
 
 // NewMessageCoordinator creates a new message coordinator instance.
@@ -74,6 +76,7 @@ func NewMessageCoordinator(config *MessageCoordinatorConfig, logger *zap.Logger)
 		metrics:           &models.RBACMetrics{},      // Initialize metrics
 		maxQueueSize:      config.MaxQueueSize,
 		validationTimeout: config.ValidationTimeout,
+		rbacEnabled:       config.RBACEnabled,
 	}
 
 	// Set default values if not configured
@@ -94,7 +97,8 @@ func NewMessageCoordinator(config *MessageCoordinatorConfig, logger *zap.Logger)
 func (mc *MessageCoordinator) Start(ctx context.Context) error {
 	mc.GetLogger().Info("Starting message coordinator",
 		zap.String("broker", mc.config.BrokerURL),
-		zap.Int("port", mc.config.BrokerPort))
+		zap.Int("port", mc.config.BrokerPort),
+		zap.Bool("rbac_enabled", mc.rbacEnabled))
 
 	// Start base coordinator first to connect MQTT
 	if err := mc.BaseCoordinator.Start(ctx); err != nil {
@@ -106,9 +110,11 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 		return err
 	}
 
-	// Load protection rules from database
-	if err := mc.loadProtectionRules(ctx); err != nil {
-		return fmt.Errorf("failed to load protection rules: %w", err)
+	// Load protection rules from database if RBAC is enabled
+	if mc.rbacEnabled {
+		if err := mc.loadProtectionRules(ctx); err != nil {
+			return fmt.Errorf("failed to load protection rules: %w", err)
+		}
 	}
 
 	// Subscribe to coordinator health topics
@@ -116,7 +122,7 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to health topics: %w", err)
 	}
 
-	// Subscribe to all coordinator topics for RBAC interception
+	// Subscribe to all coordinator topics for RBAC interception (if enabled)
 	if err := mc.subscribeCoordinatorTopics(); err != nil {
 		return fmt.Errorf("failed to subscribe to coordinator topics: %w", err)
 	}
@@ -126,16 +132,20 @@ func (mc *MessageCoordinator) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to config topic: %w", err)
 	}
 
-	// Subscribe to RBAC validation response topic
-	if err := mc.subscribeRBACResponseTopic(); err != nil {
-		return fmt.Errorf("failed to subscribe to RBAC response topic: %w", err)
+	// Subscribe to RBAC validation response topic if RBAC is enabled
+	if mc.rbacEnabled {
+		if err := mc.subscribeRBACResponseTopic(); err != nil {
+			return fmt.Errorf("failed to subscribe to RBAC response topic: %w", err)
+		}
 	}
 
 	// Start health status publishing
 	go mc.StartHealthPublishing(ctx)
 
-	// Start RBAC timeout cleanup
-	go mc.startTimeoutCleanup(ctx)
+	// Start RBAC timeout cleanup if RBAC is enabled
+	if mc.rbacEnabled {
+		go mc.startTimeoutCleanup(ctx)
+	}
 
 	mc.GetLogger().Info("Message coordinator started successfully")
 	return nil
@@ -478,6 +488,12 @@ func (mc *MessageCoordinator) handleCoordinatorMessage(topic string, payload []b
 	// Skip health and status messages
 	if strings.Contains(topic, "/health/") || strings.Contains(topic, "/status/") {
 		// Forward directly without validation
+		mc.metrics.RecordMessageForwarded()
+		return mc.forwardMessage(topic, payload)
+	}
+
+	// If RBAC is not enabled, forward all messages directly
+	if !mc.rbacEnabled {
 		mc.metrics.RecordMessageForwarded()
 		return mc.forwardMessage(topic, payload)
 	}

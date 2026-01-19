@@ -40,7 +40,7 @@ func main() {
 	if err != nil {
 		panic("failed to create logger: " + err.Error())
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting BIG SKIES Message Coordinator")
 
@@ -86,6 +86,10 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to parse validation_timeout", zap.Error(err))
 	}
+	rbacEnabled, err := coordConfig.GetBool("rbac_enabled", false)
+	if err != nil {
+		logger.Fatal("Failed to parse rbac_enabled", zap.Error(err))
+	}
 
 	logger.Info("Loaded configuration from database",
 		zap.String("broker", brokerURL),
@@ -93,7 +97,8 @@ func main() {
 		zap.Duration("monitor_interval", monitorInterval),
 		zap.Int("max_reconnect_attempts", maxReconnectAttempts),
 		zap.Int("max_queue_size", maxQueueSize),
-		zap.Duration("validation_timeout", validationTimeout))
+		zap.Duration("validation_timeout", validationTimeout),
+		zap.Bool("rbac_enabled", rbacEnabled))
 
 	// Create coordinator configuration struct
 	cfg := &coordinators.MessageCoordinatorConfig{
@@ -103,6 +108,7 @@ func main() {
 		MaxReconnectAttempts: maxReconnectAttempts,
 		MaxQueueSize:         maxQueueSize,
 		ValidationTimeout:    validationTimeout,
+		RBACEnabled:          rbacEnabled,
 	}
 	cfg.Name = "message-coordinator"
 	cfg.LogLevel = *logLevel
