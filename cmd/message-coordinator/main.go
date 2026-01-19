@@ -78,12 +78,22 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to parse max_reconnect_attempts", zap.Error(err))
 	}
+	maxQueueSize, err := coordConfig.GetInt("max_queue_size", 1000)
+	if err != nil {
+		logger.Fatal("Failed to parse max_queue_size", zap.Error(err))
+	}
+	validationTimeout, err := coordConfig.GetDuration("validation_timeout", 30*time.Second)
+	if err != nil {
+		logger.Fatal("Failed to parse validation_timeout", zap.Error(err))
+	}
 
 	logger.Info("Loaded configuration from database",
 		zap.String("broker", brokerURL),
 		zap.Int("port", brokerPort),
 		zap.Duration("monitor_interval", monitorInterval),
-		zap.Int("max_reconnect_attempts", maxReconnectAttempts))
+		zap.Int("max_reconnect_attempts", maxReconnectAttempts),
+		zap.Int("max_queue_size", maxQueueSize),
+		zap.Duration("validation_timeout", validationTimeout))
 
 	// Create coordinator configuration struct
 	cfg := &coordinators.MessageCoordinatorConfig{
@@ -91,6 +101,8 @@ func main() {
 		BrokerPort:           brokerPort,
 		MonitorInterval:      monitorInterval,
 		MaxReconnectAttempts: maxReconnectAttempts,
+		MaxQueueSize:         maxQueueSize,
+		ValidationTimeout:    validationTimeout,
 	}
 	cfg.Name = "message-coordinator"
 	cfg.LogLevel = *logLevel
@@ -153,6 +165,12 @@ func validateConfig(config *coordinators.MessageCoordinatorConfig) error {
 	}
 	if config.MaxReconnectAttempts == 0 {
 		config.MaxReconnectAttempts = 10
+	}
+	if config.MaxQueueSize == 0 {
+		config.MaxQueueSize = 1000
+	}
+	if config.ValidationTimeout == 0 {
+		config.ValidationTimeout = 30 * time.Second
 	}
 	return nil
 }
